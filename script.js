@@ -10,6 +10,22 @@ function toggleSidebar() { document.getElementById('sidebar').classList.toggle('
 function toggleTools() { document.getElementById('toolsSidebar').classList.toggle('closed'); }
 function runQuickCmd(command) { document.getElementById('userInput').value = command; sendMessage(); }
 
+// ========== MUTE LOGIC ==========
+let isMuted = false;
+
+function toggleMute() {
+    isMuted = !isMuted;
+    const btn = document.getElementById('muteBtn');
+    if (isMuted) {
+        btn.innerText = '🔇';
+        btn.classList.add('muted-active');
+        window.speechSynthesis.cancel(); // Stop talking immediately
+    } else {
+        btn.innerText = '🔊';
+        btn.classList.remove('muted-active');
+    }
+}
+
 // ========== AUTHENTICATION ==========
 async function doLogin() {
     const user = document.getElementById('username').value;
@@ -43,11 +59,7 @@ async function doRegister() {
     const res = await fetch('/register', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-            username: user, 
-            password: pass, 
-            name: name,
-            email: email, 
-            phone: phone
+            username: user, password: pass, name: name, email: email, phone: phone
         })
     });
     const data = await res.json();
@@ -87,7 +99,6 @@ async function loadSessions() {
         const div = document.createElement('div');
         div.className = 'session-item';
         div.id = `sess-${s.session_id}`;
-        
         const displayTitle = s.title ? s.title : `${s.start_time.split(' ')[0]} ${s.start_time.split(' ')[1]}`;
         
         div.innerHTML = `
@@ -104,8 +115,6 @@ async function loadSessions() {
         list.appendChild(div);
     });
     
-    // Logic: If no sessions exist, create new (which triggers greeting).
-    // If sessions exist, load the last one (no greeting, preserves history).
     if (allSessions.length > 0) {
         const current = document.getElementById('currentSessionId').value;
         if (!current) loadChat(allSessions[allSessions.length - 1].session_id);
@@ -114,9 +123,7 @@ async function loadSessions() {
             const activeItem = document.getElementById(`sess-${current}`);
             if(activeItem) activeItem.classList.add('active');
         }
-    } else { 
-        newSession(); 
-    }
+    } else { newSession(); }
 }
 
 function toggleSessionMenu(event, sessId) {
@@ -152,26 +159,18 @@ async function deleteSession(sessId) {
     }
 }
 
-// ========== UPDATED NEW SESSION (GREETING LOGIC) ==========
 async function newSession() {
     const res = await fetch('/api/new_session', {method: 'POST'});
     const sess = await res.json();
     document.getElementById('currentSessionId').value = sess.session_id;
     document.getElementById('chatBox').innerHTML = '';
     
-    // 1. Get Full Name
     const fullName = document.getElementById('userDisplayName').value || "Operator";
-    
-    // 2. Extract First Name (Split by space, take first part)
     const firstName = fullName.trim().split(' ')[0];
-    
-    // 3. Create Greeting
     const greeting = `Hello ${firstName}, how can I help you?`;
     
-    // 4. Type and Speak
     await typeEffectMessage("NORA", greeting, "assistant");
     speak(greeting);
-    
     loadSessions();
 }
 
@@ -235,7 +234,12 @@ async function sendMessage() {
 function appendMessageHTML(sender, text, role, time=null) {
     const box = document.getElementById('chatBox');
     const timestamp = time || new Date().toLocaleTimeString();
-    const html = `<div class="msg ${role}"><span class="timestamp">${sender} // ${timestamp}</span><div>${text.replace(/\n/g, '<br>')}</div></div>`;
+    
+    // CLEAN TEXT: Remove Asterisks (*)
+    let cleanText = text.replace(/\*/g, '');
+    let formatted = cleanText.replace(/\n/g, '<br>');
+    
+    const html = `<div class="msg ${role}"><span class="timestamp">${sender} // ${timestamp}</span><div>${formatted}</div></div>`;
     box.insertAdjacentHTML('beforeend', html);
     scrollToBottom();
 }
@@ -250,11 +254,15 @@ function typeEffectMessage(sender, text, role, time=null) {
         box.appendChild(msgDiv);
         scrollToBottom();
         const contentDiv = msgDiv.querySelector('.msg-content');
+        
+        // CLEAN TEXT FOR DISPLAY
+        let cleanText = text.replace(/\*/g, '');
+        
         let i = 0; const speed = 15;
         function type() {
-            if (i < text.length) {
-                if(text.charAt(i) === '\n') contentDiv.innerHTML += '<br>';
-                else contentDiv.innerHTML += text.charAt(i);
+            if (i < cleanText.length) {
+                if(cleanText.charAt(i) === '\n') contentDiv.innerHTML += '<br>';
+                else contentDiv.innerHTML += cleanText.charAt(i);
                 i++; scrollToBottom(); setTimeout(type, speed);
             } else { resolve(); }
         }
@@ -274,11 +282,18 @@ function setupVoice() {
     } else { document.getElementById('micBtn').style.display = 'none'; }
 }
 function toggleVoice() { if(recognition) recognition.start(); }
+
 function speak(text) {
+    // If Muted, do not speak
+    if (isMuted) return;
     if (!('speechSynthesis' in window)) return;
+    
     window.speechSynthesis.cancel();
+    
+    // Clean text for speech too (remove asterisks)
     const cleanText = text.replace(/[*`_#]/g, '');
     const utterance = new SpeechSynthesisUtterance(cleanText);
+    
     let voices = window.speechSynthesis.getVoices();
     if (voices.length === 0) {
         window.speechSynthesis.onvoiceschanged = function() {
