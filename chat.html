@@ -40,6 +40,9 @@
             
             <div class="input-area">
                 <button id="micBtn" onclick="toggleVoice()" class="btn-icon"><span id="micIcon">🎤</span></button>
+                <!-- MUTE BUTTON ADDED HERE -->
+                <button id="muteBtn" onclick="toggleMute()" class="btn-icon" style="margin-right: 5px;">🔊</button>
+                
                 <input type="text" id="userInput" placeholder="Enter command..." onkeypress="handleEnter(event)" autocomplete="off">
                 <button onclick="clearChat()" class="btn-secondary" style="width: auto; padding: 0 15px; border-color: #ff003c; color: #ff003c;">CLR</button>
                 <button onclick="sendMessage()" class="btn-primary">EXECUTE</button>
@@ -67,9 +70,7 @@
         </aside>
     </div>
     
-    <!-- HIDDEN FIELDS FOR JS -->
     <input type="hidden" id="currentSessionId" value="">
-    <!-- This value comes from app.py -->
     <input type="hidden" id="userDisplayName" value="{{ name }}">
     
     <script src="/static/script.js"></script>
