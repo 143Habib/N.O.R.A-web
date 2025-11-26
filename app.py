@@ -21,7 +21,7 @@ app.secret_key = "NORA_SECRET_KEY_CHANGE_THIS"
 # ========== CONFIG ==========
 USERS_FILE = "users.json"
 CHAT_FILE_TEMPLATE = "chat_{username}.json"
-OLLAMA_MODEL = "llama3:8b"
+OLLAMA_MODEL = "llama3:8b" # Change to 'llama3.2' or 'tinyllama' if slow
 
 # ========== Utilities ==========
 def now_ts():
@@ -45,36 +45,49 @@ def hash_password(password):
 
 # ========== System Command Logic ==========
 def execute_system_command(cmd_lower):
+    # 1. Applications
     if "notepad" in cmd_lower:
         subprocess.Popen("notepad")
         return "Opening Notepad.", None
+    
     if "calculator" in cmd_lower or "calc" in cmd_lower:
         subprocess.Popen("calc")
         return "Opening Calculator.", None
+    
     if "camera" in cmd_lower:
         subprocess.run("start microsoft.windows.camera:", shell=True)
         return "Opening Camera.", None
+    
     if "word" in cmd_lower and "open" in cmd_lower:
         subprocess.Popen("start winword", shell=True)
         return "Opening Microsoft Word.", None
+    
     if "excel" in cmd_lower and "open" in cmd_lower:
         subprocess.Popen("start excel", shell=True)
         return "Opening Microsoft Excel.", None
+
     if "task manager" in cmd_lower:
         subprocess.Popen("taskmgr")
         return "Opening Task Manager.", None
+    
     if "control panel" in cmd_lower:
         subprocess.Popen("control")
         return "Opening Control Panel.", None
+
+    # 2. Browser Actions
     if "youtube" in cmd_lower and "open" in cmd_lower:
         return "Opening YouTube.", {"type": "open_url", "url": "https://www.youtube.com"}
+
     if "google" in cmd_lower and "open" in cmd_lower:
         return "Opening Google.", {"type": "open_url", "url": "https://www.google.com"}
+    
+    # 3. System Info / Utils
     if "screenshot" in cmd_lower or "snap" in cmd_lower:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"screenshot_{ts}.png"
         pyautogui.screenshot(filename)
         return f"Screenshot saved as {filename}.", None
+    
     if "battery" in cmd_lower:
         try:
             battery = psutil.sensors_battery()
@@ -84,8 +97,10 @@ def execute_system_command(cmd_lower):
             return "Battery information not available.", None
         except:
             return "Could not access battery sensors.", None
+
     if "time" in cmd_lower:
         return f"The current time is {datetime.now().strftime('%I:%M %p')}.", None
+
     return None, None
 
 # ========== Routes ==========
@@ -112,10 +127,15 @@ def register():
     if request.method == 'POST':
         data = request.get_json()
         users = safe_load_json(USERS_FILE, {})
+        
         if data.get('username') in users:
             return jsonify({"status": "error", "message": "Username exists"})
+        
+        # ADDED EMAIL AND PHONE HERE
         users[data.get('username')] = {
             "name": data.get('name'),
+            "email": data.get('email'),
+            "phone": data.get('phone'),
             "password": hash_password(data.get('password')),
             "created_at": now_ts()
         }
@@ -146,7 +166,6 @@ def new_session():
     if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
     filename = CHAT_FILE_TEMPLATE.format(username=session['username'])
     data = safe_load_json(filename, {"sessions": []})
-    # Added "title" field for renaming
     new_sess = {
         "session_id": datetime.now().strftime("%Y%m%d%H%M%S"), 
         "start_time": now_ts(), 
@@ -184,7 +203,6 @@ def delete_session():
     filename = CHAT_FILE_TEMPLATE.format(username=session['username'])
     data = safe_load_json(filename, {"sessions": []})
     
-    # Filter out the session to delete
     original_count = len(data["sessions"])
     data["sessions"] = [s for s in data["sessions"] if s["session_id"] != sess_id]
     
@@ -205,7 +223,7 @@ def clear_session():
     
     for s in data["sessions"]:
         if s["session_id"] == sess_id:
-            s["messages"] = [] # Empty the list
+            s["messages"] = []
             safe_save_json(filename, data)
             return jsonify({"status": "success"})
             
