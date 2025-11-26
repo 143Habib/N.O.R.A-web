@@ -8,7 +8,6 @@ import pyautogui
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 
-# Optional: import ollama
 try:
     import ollama
     OLLAMA_AVAILABLE = True
@@ -18,76 +17,55 @@ except Exception:
 app = Flask(__name__)
 app.secret_key = "NORA_SECRET_KEY_CHANGE_THIS"
 
-# ========== CONFIG ==========
 USERS_FILE = "users.json"
 CHAT_FILE_TEMPLATE = "chat_{username}.json"
-OLLAMA_MODEL = "llama3:8b" # Change to 'llama3.2' or 'tinyllama' if slow
+OLLAMA_MODEL = "llama3:8b" 
 
-# ========== Utilities ==========
-def now_ts():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+def now_ts(): return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 def safe_load_json(path, default):
-    if not os.path.exists(path):
-        return default
+    if not os.path.exists(path): return default
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return default
+        with open(path, "r", encoding="utf-8") as f: return json.load(f)
+    except: return default
 
 def safe_save_json(path, obj):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(obj, f, indent=2, ensure_ascii=False)
+    with open(path, "w", encoding="utf-8") as f: json.dump(obj, f, indent=2, ensure_ascii=False)
 
 def hash_password(password):
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
-# ========== System Command Logic ==========
 def execute_system_command(cmd_lower):
-    # 1. Applications
     if "notepad" in cmd_lower:
         subprocess.Popen("notepad")
         return "Opening Notepad.", None
-    
     if "calculator" in cmd_lower or "calc" in cmd_lower:
         subprocess.Popen("calc")
         return "Opening Calculator.", None
-    
     if "camera" in cmd_lower:
         subprocess.run("start microsoft.windows.camera:", shell=True)
         return "Opening Camera.", None
-    
     if "word" in cmd_lower and "open" in cmd_lower:
         subprocess.Popen("start winword", shell=True)
         return "Opening Microsoft Word.", None
-    
     if "excel" in cmd_lower and "open" in cmd_lower:
         subprocess.Popen("start excel", shell=True)
         return "Opening Microsoft Excel.", None
-
     if "task manager" in cmd_lower:
         subprocess.Popen("taskmgr")
         return "Opening Task Manager.", None
-    
     if "control panel" in cmd_lower:
         subprocess.Popen("control")
         return "Opening Control Panel.", None
-
-    # 2. Browser Actions
     if "youtube" in cmd_lower and "open" in cmd_lower:
         return "Opening YouTube.", {"type": "open_url", "url": "https://www.youtube.com"}
-
     if "google" in cmd_lower and "open" in cmd_lower:
         return "Opening Google.", {"type": "open_url", "url": "https://www.google.com"}
-    
-    # 3. System Info / Utils
     if "screenshot" in cmd_lower or "snap" in cmd_lower:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"screenshot_{ts}.png"
         pyautogui.screenshot(filename)
         return f"Screenshot saved as {filename}.", None
-    
     if "battery" in cmd_lower:
         try:
             battery = psutil.sensors_battery()
@@ -95,15 +73,11 @@ def execute_system_command(cmd_lower):
                 plugged = "plugged in" if battery.power_plugged else "on battery"
                 return f"Battery is at {battery.percent}% and {plugged}.", None
             return "Battery information not available.", None
-        except:
-            return "Could not access battery sensors.", None
-
+        except: return "Could not access battery sensors.", None
     if "time" in cmd_lower:
         return f"The current time is {datetime.now().strftime('%I:%M %p')}.", None
-
     return None, None
 
-# ========== Routes ==========
 @app.route('/')
 def index():
     if 'username' in session: return redirect(url_for('chat'))
@@ -127,11 +101,9 @@ def register():
     if request.method == 'POST':
         data = request.get_json()
         users = safe_load_json(USERS_FILE, {})
-        
         if data.get('username') in users:
             return jsonify({"status": "error", "message": "Username exists"})
         
-        # ADDED EMAIL AND PHONE HERE
         users[data.get('username')] = {
             "name": data.get('name'),
             "email": data.get('email'),
@@ -152,8 +124,6 @@ def logout():
 def chat():
     if 'username' not in session: return redirect(url_for('login'))
     return render_template('chat.html', username=session['username'], name=session['name'])
-
-# ========== API Routes ==========
 
 @app.route('/api/get_sessions', methods=['GET'])
 def get_sessions():
@@ -182,16 +152,13 @@ def rename_session():
     req = request.get_json()
     sess_id = req.get('session_id')
     new_title = req.get('title')
-    
     filename = CHAT_FILE_TEMPLATE.format(username=session['username'])
     data = safe_load_json(filename, {"sessions": []})
-    
     for s in data["sessions"]:
         if s["session_id"] == sess_id:
             s["title"] = new_title
             safe_save_json(filename, data)
             return jsonify({"status": "success"})
-            
     return jsonify({"error": "Session not found"}), 404
 
 @app.route('/api/delete_session', methods=['POST'])
@@ -199,17 +166,13 @@ def delete_session():
     if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
     req = request.get_json()
     sess_id = req.get('session_id')
-    
     filename = CHAT_FILE_TEMPLATE.format(username=session['username'])
     data = safe_load_json(filename, {"sessions": []})
-    
-    original_count = len(data["sessions"])
+    original = len(data["sessions"])
     data["sessions"] = [s for s in data["sessions"] if s["session_id"] != sess_id]
-    
-    if len(data["sessions"]) < original_count:
+    if len(data["sessions"]) < original:
         safe_save_json(filename, data)
         return jsonify({"status": "success"})
-        
     return jsonify({"error": "Session not found"}), 404
 
 @app.route('/api/clear_session', methods=['POST'])
@@ -217,26 +180,21 @@ def clear_session():
     if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
     req = request.get_json()
     sess_id = req.get('session_id')
-    
     filename = CHAT_FILE_TEMPLATE.format(username=session['username'])
     data = safe_load_json(filename, {"sessions": []})
-    
     for s in data["sessions"]:
         if s["session_id"] == sess_id:
             s["messages"] = []
             safe_save_json(filename, data)
             return jsonify({"status": "success"})
-            
     return jsonify({"error": "Session not found"}), 404
 
 @app.route('/api/process_message', methods=['POST'])
 def process_message():
     if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
-    
     req = request.get_json()
     user_msg = req.get('message', '')
     session_id = req.get('session_id')
-    
     filename = CHAT_FILE_TEMPLATE.format(username=session['username'])
     data = safe_load_json(filename, {"sessions": []})
     
@@ -257,14 +215,12 @@ def process_message():
         if OLLAMA_AVAILABLE:
             try:
                 res = ollama.chat(model=OLLAMA_MODEL, messages=[
-                    {"role": "system", "content": "You are NORA, a futuristic AI assistant. Keep responses concise."},
+                    {"role": "system", "content": "You are NORA, a futuristic AI assistant."},
                     {"role": "user", "content": user_msg}
                 ])
                 response_text = res['message']['content']
-            except Exception as e:
-                response_text = f"AI Error: {str(e)}"
-        else:
-            response_text = "System offline. AI module not detected."
+            except Exception as e: response_text = f"AI Error: {str(e)}"
+        else: response_text = "System offline. AI module not detected."
 
     current_sess["messages"].append({"timestamp": now_ts(), "role": "assistant", "content": response_text})
     safe_save_json(filename, data)
