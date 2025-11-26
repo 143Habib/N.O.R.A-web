@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>N.O.R.A</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    
+    <!-- Intro Animation Layer -->
+    <div id="splash-screen">
+        <div class="logo-container" onclick="unlockSystem()">
+            <img src="/static/logo.png" alt="NORA Logo" class="logo-img">
+        </div>
+        <div class="click-hint">CLICK THE CORE TO INITIALIZE</div>
+    </div>
+
+    <!-- Main Login Form (Hidden initially) -->
+    <div class="login-wrapper">
+        <div class="container">
+            <div style="text-align:center; margin-bottom:20px;">
+                <img src="/static/logo.png" style="width: 80px; margin-bottom: 10px;">
+                <h1 style="font-size: 2.5rem; margin-bottom:0;">N.O.R.A</h1>
+                <small style="color:var(--neon-blue); letter-spacing:3px;">NEURAL OPERATION & REAPONSE ASSISTANT</small>
+            </div>
+            
+            <div class="card">
+                <h3 style="margin-bottom:20px; border-bottom:1px solid var(--text-dim); padding-bottom:10px;">
+                    Identity Verification
+                </h3>
+                
+                <input type="text" id="username" placeholder="USER ID">
+                <input type="password" id="password" placeholder="ACCESS KEY">
+                
+                <div class="btn-group">
+                    <button onclick="doLogin()" class="btn-primary">Initialize</button>
+                    <button onclick="window.location.href='/register'" class="btn-secondary">New User</button>
+                </div>
+                <p id="error" class="error" style="min-height:20px;"></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>

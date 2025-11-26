@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>N.O.R.A-REGISTER</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- 
+      FIX: Added inline style="display: flex; ..." 
+      This forces the page to center the content vertically and horizontally.
+    -->
+    <div class="container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; width: 100vw;">
+        
+        <!-- Header Section -->
+        <div style="text-align:center; margin-bottom:30px;">
+            <!-- Logo -->
+            <div style="margin-bottom: 10px; display: inline-block; animation: breathe 3s infinite;">
+                <img src="/static/logo.png" style="width: 60px; height: auto; filter: drop-shadow(0 0 10px var(--neon-blue));">
+            </div>
+            <h1 style="font-size: 2.5rem; margin: 0; text-shadow: 0 0 15px var(--neon-blue);">NEW ACCESS</h1>
+            <small style="color:var(--neon-blue); letter-spacing:4px; font-size: 0.8rem;">CREATE USER ID</small>
+        </div>
+        
+        <!-- Form Card -->
+        <div class="card" style="width: 400px; max-width: 90vw;">
+            <h3 style="margin-bottom:25px; border-bottom:1px solid rgba(0, 243, 255, 0.2); padding-bottom:15px; font-size: 1.2rem; letter-spacing: 1px;">
+                REGISTRATION FORM
+            </h3>
+            
+            <!-- Inputs -->
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <input type="text" id="name" placeholder="FULL NAME" autocomplete="off">
+                <input type="text" id="username" placeholder="SET USER ID" autocomplete="off">
+                <input type="password" id="password" placeholder="SET ACCESS KEY">
+            </div>
+            
+            <!-- Buttons -->
+            <div class="btn-group" style="margin-top: 30px;">
+                <button onclick="doRegister()" class="btn-primary">CREATE ID</button>
+                <button onclick="window.location.href='/login'" class="btn-danger">CANCEL</button>
+            </div>
+            
+            <!-- Error Message -->
+            <p id="error" class="error" style="min-height: 20px; margin-top: 10px;"></p>
+        </div>
+    </div>
+    
+    <script src="/static/script.js"></script>
+</body>
+</html>

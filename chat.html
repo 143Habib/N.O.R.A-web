@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NORA // TERMINAL</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- LEFT SIDEBAR -->
+        <aside class="sidebar" id="sidebar">
+            <div class="brand">
+                <img src="/static/logo.png" class="mini-logo" alt="NORA">
+                <h2>N.O.R.A</h2>
+                <small>SYSTEM ONLINE // {{ name }}</small>
+            </div>
+            <div class="controls">
+                <button onclick="newSession()" class="btn-secondary" style="width:100%">+ New Operation</button>
+            </div>
+            <!-- Session List Container -->
+            <div class="session-list" id="sessionList"></div>
+            
+            <div class="controls" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1);">
+                <button onclick="logout()" class="btn-danger" style="width:100%">Disconnect</button>
+            </div>
+        </aside>
+
+        <!-- MAIN INTERFACE -->
+        <main class="chat-area">
+            <div class="chat-header">
+                <button class="toggle-btn" onclick="toggleSidebar()">☰</button>
+                <div class="chat-title-group">
+                    <h3>Neural Operations Log</h3>
+                    <span id="status" class="status">Ready</span>
+                </div>
+                <button class="toggle-btn" onclick="toggleTools()">⚙️</button>
+            </div>
+            
+            <div id="chatBox" class="chat-box"></div>
+            
+            <div class="input-area">
+                <button id="micBtn" onclick="toggleVoice()" class="btn-icon"><span id="micIcon">🎤</span></button>
+                <input type="text" id="userInput" placeholder="Enter command..." onkeypress="handleEnter(event)" autocomplete="off">
+                
+                <!-- CLEAR BUTTON ADDED HERE -->
+                <button onclick="clearChat()" class="btn-secondary" style="width: auto; padding: 0 15px; border-color: #ff003c; color: #ff003c;">CLR</button>
+                
+                <button onclick="sendMessage()" class="btn-primary">EXECUTE</button>
+            </div>
+        </main>
+
+        <!-- RIGHT SIDEBAR (TOOLS) -->
+        <aside class="sidebar-right closed" id="toolsSidebar">
+            <div class="brand">
+                <h3>QUICK ACCESS</h3>
+                <small>SYSTEM OVERRIDES</small>
+            </div>
+            <div class="tools-grid">
+                <button class="tool-btn" onclick="runQuickCmd('open calculator')">🧮 Calc</button>
+                <button class="tool-btn" onclick="runQuickCmd('open notepad')">📝 Note</button>
+                <button class="tool-btn" onclick="runQuickCmd('open camera')">📷 Cam</button>
+                <button class="tool-btn" onclick="runQuickCmd('take screenshot')">📸 Snap</button>
+                <button class="tool-btn" onclick="runQuickCmd('open task manager')">⚙️ Task</button>
+                <button class="tool-btn" onclick="runQuickCmd('open control panel')">🎛️ Cntrl</button>
+                <button class="tool-btn" onclick="runQuickCmd('check battery')">🔋 Batt</button>
+                <button class="tool-btn" onclick="runQuickCmd('what time is it')">⌚ Time</button>
+                <button class="tool-btn" onclick="runQuickCmd('open google')">🌐 Web</button>
+                <button class="tool-btn" onclick="runQuickCmd('open word')">📄 Word</button>
+            </div>
+        </aside>
+    </div>
+    <input type="hidden" id="currentSessionId" value="">
+    <script src="/static/script.js"></script>
+</body>
+</html>
