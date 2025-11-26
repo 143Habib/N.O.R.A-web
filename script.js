@@ -30,12 +30,11 @@ async function doLogin() {
 
 async function doRegister() {
     const name = document.getElementById('name').value;
-    const email = document.getElementById('email').value; // NEW
-    const phone = document.getElementById('phone').value; // NEW
+    const email = document.getElementById('email').value;
+    const phone = document.getElementById('phone').value;
     const user = document.getElementById('username').value;
     const pass = document.getElementById('password').value;
     
-    // Basic validation
     if(!name || !email || !user || !pass) {
         document.getElementById('error').innerText = "All fields except phone are required.";
         return;
@@ -105,6 +104,8 @@ async function loadSessions() {
         list.appendChild(div);
     });
     
+    // Logic: If no sessions exist, create new (which triggers greeting).
+    // If sessions exist, load the last one (no greeting, preserves history).
     if (allSessions.length > 0) {
         const current = document.getElementById('currentSessionId').value;
         if (!current) loadChat(allSessions[allSessions.length - 1].session_id);
@@ -113,7 +114,9 @@ async function loadSessions() {
             const activeItem = document.getElementById(`sess-${current}`);
             if(activeItem) activeItem.classList.add('active');
         }
-    } else { newSession(); }
+    } else { 
+        newSession(); 
+    }
 }
 
 function toggleSessionMenu(event, sessId) {
@@ -149,12 +152,26 @@ async function deleteSession(sessId) {
     }
 }
 
+// ========== UPDATED NEW SESSION (GREETING LOGIC) ==========
 async function newSession() {
     const res = await fetch('/api/new_session', {method: 'POST'});
     const sess = await res.json();
     document.getElementById('currentSessionId').value = sess.session_id;
     document.getElementById('chatBox').innerHTML = '';
-    await typeEffectMessage("NORA", "Systems online. Ready.", "assistant");
+    
+    // 1. Get Full Name
+    const fullName = document.getElementById('userDisplayName').value || "Operator";
+    
+    // 2. Extract First Name (Split by space, take first part)
+    const firstName = fullName.trim().split(' ')[0];
+    
+    // 3. Create Greeting
+    const greeting = `Hello ${firstName}, how can I help you?`;
+    
+    // 4. Type and Speak
+    await typeEffectMessage("NORA", greeting, "assistant");
+    speak(greeting);
+    
     loadSessions();
 }
 
