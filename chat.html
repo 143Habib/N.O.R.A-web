@@ -18,7 +18,6 @@
             <div class="controls">
                 <button onclick="newSession()" class="btn-secondary" style="width:100%">+ New Operation</button>
             </div>
-            <!-- Session List Container -->
             <div class="session-list" id="sessionList"></div>
             
             <div class="controls" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1);">
@@ -42,10 +41,7 @@
             <div class="input-area">
                 <button id="micBtn" onclick="toggleVoice()" class="btn-icon"><span id="micIcon">🎤</span></button>
                 <input type="text" id="userInput" placeholder="Enter command..." onkeypress="handleEnter(event)" autocomplete="off">
-                
-                <!-- CLEAR BUTTON ADDED HERE -->
                 <button onclick="clearChat()" class="btn-secondary" style="width: auto; padding: 0 15px; border-color: #ff003c; color: #ff003c;">CLR</button>
-                
                 <button onclick="sendMessage()" class="btn-primary">EXECUTE</button>
             </div>
         </main>
@@ -70,7 +66,12 @@
             </div>
         </aside>
     </div>
+    
+    <!-- HIDDEN FIELDS FOR JS -->
     <input type="hidden" id="currentSessionId" value="">
+    <!-- This value comes from app.py -->
+    <input type="hidden" id="userDisplayName" value="{{ name }}">
+    
     <script src="/static/script.js"></script>
 </body>
 </html>
