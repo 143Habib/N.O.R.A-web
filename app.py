@@ -215,7 +215,7 @@ def process_message():
         if OLLAMA_AVAILABLE:
             try:
                 res = ollama.chat(model=OLLAMA_MODEL, messages=[
-                    {"role": "system", "content": "You are NORA, a futuristic AI assistant."},
+                    {"role": "system", "content": "You are NORA, a futuristic AI assistant. Do not use markdown formatting like asterisks or bold text. Keep responses clean."},
                     {"role": "user", "content": user_msg}
                 ])
                 response_text = res['message']['content']
