@@ -27,18 +27,38 @@ async function doLogin() {
         else errorEl.innerText = "Access Denied: " + data.message;
     } catch (e) { errorEl.innerText = "Connection Failure."; }
 }
+
 async function doRegister() {
     const name = document.getElementById('name').value;
+    const email = document.getElementById('email').value; // NEW
+    const phone = document.getElementById('phone').value; // NEW
     const user = document.getElementById('username').value;
     const pass = document.getElementById('password').value;
+    
+    // Basic validation
+    if(!name || !email || !user || !pass) {
+        document.getElementById('error').innerText = "All fields except phone are required.";
+        return;
+    }
+
     const res = await fetch('/register', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({username: user, password: pass, name: name})
+        body: JSON.stringify({
+            username: user, 
+            password: pass, 
+            name: name,
+            email: email, 
+            phone: phone
+        })
     });
     const data = await res.json();
-    if(data.status === 'success') { alert("Identity Created. Proceed to Login."); window.location.href = '/login'; }
+    if(data.status === 'success') { 
+        alert("Identity Created. Proceed to Login."); 
+        window.location.href = '/login'; 
+    }
     else { document.getElementById('error').innerText = data.message; }
 }
+
 function logout() { window.location.href = '/logout'; }
 
 // ========== CHAT ENGINE ==========
@@ -50,7 +70,6 @@ if (window.location.pathname === '/chat') {
     loadSessions();
     setupVoice();
     window.speechSynthesis.getVoices();
-    // Close menus when clicking elsewhere
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.session-item')) {
             document.querySelectorAll('.session-dropdown').forEach(el => el.classList.remove('show'));
@@ -70,7 +89,6 @@ async function loadSessions() {
         div.className = 'session-item';
         div.id = `sess-${s.session_id}`;
         
-        // Default Title or Date
         const displayTitle = s.title ? s.title : `${s.start_time.split(' ')[0]} ${s.start_time.split(' ')[1]}`;
         
         div.innerHTML = `
@@ -91,7 +109,6 @@ async function loadSessions() {
         const current = document.getElementById('currentSessionId').value;
         if (!current) loadChat(allSessions[allSessions.length - 1].session_id);
         else {
-            // Ensure active state persists after reload
             document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active'));
             const activeItem = document.getElementById(`sess-${current}`);
             if(activeItem) activeItem.classList.add('active');
@@ -99,15 +116,13 @@ async function loadSessions() {
     } else { newSession(); }
 }
 
-// Toggle Dropdown
 function toggleSessionMenu(event, sessId) {
-    event.stopPropagation(); // Prevent chat loading
+    event.stopPropagation();
     document.querySelectorAll('.session-dropdown').forEach(el => el.classList.remove('show'));
     const menu = document.getElementById(`menu-${sessId}`);
     if(menu) menu.classList.add('show');
 }
 
-// Rename Function
 async function renameSession(sessId) {
     const newName = prompt("Enter new session name:");
     if(newName) {
@@ -119,18 +134,15 @@ async function renameSession(sessId) {
     }
 }
 
-// Delete Function
 async function deleteSession(sessId) {
     if(confirm("Are you sure you want to delete this history?")) {
         await fetch('/api/delete_session', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({session_id: sessId})
         });
-        
-        // If deleted active session, load new one
         if(document.getElementById('currentSessionId').value === sessId) {
             document.getElementById('currentSessionId').value = "";
-            location.reload(); // Easiest way to reset state
+            location.reload();
         } else {
             loadSessions();
         }
@@ -161,7 +173,6 @@ function loadChat(sessionId) {
     scrollToBottom();
 }
 
-// Clear Chat Function
 async function clearChat() {
     const sessId = document.getElementById('currentSessionId').value;
     if(sessId) {
