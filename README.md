@@ -22,18 +22,6 @@
 
 ---
 
-## Screenshots
-
-<div align="center">
-  <img src="static/logo.png" alt="NORA Logo" width="150">
-</div>
-
-| Login Splash Screen | Main Dashboard |
-|:-------------------:|:--------------:|
-| [Add Screenshot]  | [Add Screenshot] |
-
----
-
 ## Features
 
 ### Advanced User Interface
