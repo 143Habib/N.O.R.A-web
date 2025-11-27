@@ -5,9 +5,13 @@ import subprocess
 import webbrowser
 import psutil
 import pyautogui
+import base64
+import iocleart
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from PIL import Image
 
+# Optional: import ollama
 try:
     import ollama
     OLLAMA_AVAILABLE = True
@@ -17,11 +21,16 @@ except Exception:
 app = Flask(__name__)
 app.secret_key = "NORA_SECRET_KEY_CHANGE_THIS"
 
+# ========== CONFIG ==========
 USERS_FILE = "users.json"
 CHAT_FILE_TEMPLATE = "chat_{username}.json"
-OLLAMA_MODEL = "llama3:8b" 
+# We use Llama3 for text, Llava for images
+OLLAMA_TEXT_MODEL = "llama3:8b" 
+OLLAMA_VISION_MODEL = "llava" 
 
-def now_ts(): return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+# ========== Utilities ==========
+def now_ts():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 def safe_load_json(path, default):
     if not os.path.exists(path): return default
@@ -78,6 +87,7 @@ def execute_system_command(cmd_lower):
         return f"The current time is {datetime.now().strftime('%I:%M %p')}.", None
     return None, None
 
+# ========== Routes ==========
 @app.route('/')
 def index():
     if 'username' in session: return redirect(url_for('chat'))
@@ -103,7 +113,6 @@ def register():
         users = safe_load_json(USERS_FILE, {})
         if data.get('username') in users:
             return jsonify({"status": "error", "message": "Username exists"})
-        
         users[data.get('username')] = {
             "name": data.get('name'),
             "email": data.get('email'),
@@ -125,6 +134,7 @@ def chat():
     if 'username' not in session: return redirect(url_for('login'))
     return render_template('chat.html', username=session['username'], name=session['name'])
 
+# ========== API Routes ==========
 @app.route('/api/get_sessions', methods=['GET'])
 def get_sessions():
     if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
@@ -192,35 +202,77 @@ def clear_session():
 @app.route('/api/process_message', methods=['POST'])
 def process_message():
     if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
-    req = request.get_json()
-    user_msg = req.get('message', '')
-    session_id = req.get('session_id')
+    
+    # Handle Form Data (File + Text)
+    user_msg = request.form.get('message', '')
+    session_id = request.form.get('session_id')
+    uploaded_file = request.files.get('file')
+    
     filename = CHAT_FILE_TEMPLATE.format(username=session['username'])
     data = safe_load_json(filename, {"sessions": []})
     
     current_sess = next((s for s in data["sessions"] if s["session_id"] == session_id), None)
     if not current_sess: return jsonify({"error": "Session not found"}), 404
 
-    current_sess["messages"].append({"timestamp": now_ts(), "role": "user", "content": user_msg})
+    # Save User Msg
+    display_content = user_msg
+    if uploaded_file:
+        display_content += f" [Attached: {uploaded_file.filename}]"
+    
+    current_sess["messages"].append({"timestamp": now_ts(), "role": "user", "content": display_content})
     
     msg_lower = user_msg.lower()
     response_text = ""
     action = None
     
-    sys_resp, sys_action = execute_system_command(msg_lower)
-    if sys_resp:
-        response_text = sys_resp
-        action = sys_action
-    else:
+    # 1. System Commands (Text Only)
+    if not uploaded_file:
+        sys_resp, sys_action = execute_system_command(msg_lower)
+        if sys_resp:
+            response_text = sys_resp
+            action = sys_action
+            
+    # 2. AI Processing (Text OR Vision)
+    if not response_text:
         if OLLAMA_AVAILABLE:
             try:
-                res = ollama.chat(model=OLLAMA_MODEL, messages=[
-                    {"role": "system", "content": "You are NORA, a futuristic AI assistant. Do not use markdown formatting like asterisks or bold text. Keep responses clean."},
-                    {"role": "user", "content": user_msg}
-                ])
-                response_text = res['message']['content']
-            except Exception as e: response_text = f"AI Error: {str(e)}"
-        else: response_text = "System offline. AI module not detected."
+                # --- CASE A: IMAGE UPLOAD (VISION) ---
+                if uploaded_file and uploaded_file.mimetype.startswith('image/'):
+                    # Convert image to bytes for Ollama
+                    image_bytes = uploaded_file.read()
+                    
+                    res = ollama.generate(
+                        model=OLLAMA_VISION_MODEL,
+                        prompt=user_msg if user_msg else "Describe this image.",
+                        images=[image_bytes]
+                    )
+                    response_text = res['response']
+                
+                # --- CASE B: TEXT FILE UPLOAD ---
+                elif uploaded_file and uploaded_file.mimetype.startswith('text/'):
+                    file_content = uploaded_file.read().decode('utf-8')
+                    full_prompt = f"User uploaded a file:\n{file_content}\n\nInstruction: {user_msg}"
+                    
+                    res = ollama.chat(model=OLLAMA_TEXT_MODEL, messages=[
+                        {"role": "system", "content": "You are NORA. Analyze the provided file content."},
+                        {"role": "user", "content": full_prompt}
+                    ])
+                    response_text = res['message']['content']
+
+                # --- CASE C: NORMAL TEXT CHAT ---
+                else:
+                    res = ollama.chat(model=OLLAMA_TEXT_MODEL, messages=[
+                        {"role": "system", "content": "You are NORA. Do not use asterisks. Be concise."},
+                        {"role": "user", "content": user_msg}
+                    ])
+                    response_text = res['message']['content']
+
+            except Exception as e:
+                response_text = f"AI Error: {str(e)}"
+                if "pull" in str(e) and uploaded_file:
+                    response_text += " (Please run 'ollama pull llava' in terminal for image support)"
+        else:
+            response_text = "System offline. AI module not detected."
 
     current_sess["messages"].append({"timestamp": now_ts(), "role": "assistant", "content": response_text})
     safe_save_json(filename, data)
