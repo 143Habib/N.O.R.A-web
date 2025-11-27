@@ -38,12 +38,23 @@
             
             <div id="chatBox" class="chat-box"></div>
             
+            <!-- PREVIEW AREA (Hidden by default) -->
+            <div id="filePreviewArea" class="file-preview-area" style="display:none;">
+                <span id="fileName">file.jpg</span>
+                <button onclick="clearFile()" class="remove-file-btn">✖</button>
+            </div>
+
             <div class="input-area">
+                <!-- FILE INPUT (HIDDEN) -->
+                <input type="file" id="fileInput" hidden onchange="handleFileSelect()">
+                
+                <!-- UPLOAD BUTTON -->
+                <button id="uploadBtn" onclick="document.getElementById('fileInput').click()" class="btn-icon" style="margin-right:5px; color: var(--neon-green); border-color: var(--neon-green);">📎</button>
+
                 <button id="micBtn" onclick="toggleVoice()" class="btn-icon"><span id="micIcon">🎤</span></button>
-                <!-- MUTE BUTTON ADDED HERE -->
                 <button id="muteBtn" onclick="toggleMute()" class="btn-icon" style="margin-right: 5px;">🔊</button>
                 
-                <input type="text" id="userInput" placeholder="Enter command..." onkeypress="handleEnter(event)" autocomplete="off">
+                <input type="text" id="userInput" placeholder="Enter command or describe image..." onkeypress="handleEnter(event)" autocomplete="off">
                 <button onclick="clearChat()" class="btn-secondary" style="width: auto; padding: 0 15px; border-color: #ff003c; color: #ff003c;">CLR</button>
                 <button onclick="sendMessage()" class="btn-primary">EXECUTE</button>
             </div>
