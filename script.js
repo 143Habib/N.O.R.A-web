@@ -10,8 +10,10 @@ function toggleSidebar() { document.getElementById('sidebar').classList.toggle('
 function toggleTools() { document.getElementById('toolsSidebar').classList.toggle('closed'); }
 function runQuickCmd(command) { document.getElementById('userInput').value = command; sendMessage(); }
 
-// ========== MUTE LOGIC ==========
+// ========== MUTE, FILE & WEB SEARCH ==========
 let isMuted = false;
+let isWebSearch = false; // WEB SEARCH STATE
+
 function toggleMute() {
     isMuted = !isMuted;
     const btn = document.getElementById('muteBtn');
@@ -25,9 +27,17 @@ function toggleMute() {
     }
 }
 
-// ========== FILE UPLOAD LOGIC ==========
-let selectedFile = null;
+function toggleWebSearch() {
+    isWebSearch = !isWebSearch;
+    const btn = document.getElementById('webBtn');
+    if (isWebSearch) {
+        btn.classList.add('active-web'); // Apply glowing style
+    } else {
+        btn.classList.remove('active-web');
+    }
+}
 
+let selectedFile = null;
 function handleFileSelect() {
     const fileInput = document.getElementById('fileInput');
     if(fileInput.files.length > 0) {
@@ -36,14 +46,13 @@ function handleFileSelect() {
         document.getElementById('filePreviewArea').style.display = 'flex';
     }
 }
-
 function clearFile() {
     selectedFile = null;
     document.getElementById('fileInput').value = "";
     document.getElementById('filePreviewArea').style.display = 'none';
 }
 
-// ========== AUTHENTICATION ==========
+// ========== AUTH ==========
 async function doLogin() {
     const user = document.getElementById('username').value;
     const pass = document.getElementById('password').value;
@@ -196,7 +205,7 @@ async function clearChat() {
     }
 }
 
-// ========== MESSAGING (UPDATED FOR FILE UPLOAD) ==========
+// ========== SEND MESSAGE (UPDATED) ==========
 function handleEnter(e) { if(e.key === 'Enter') sendMessage(); }
 
 async function sendMessage() {
@@ -204,47 +213,33 @@ async function sendMessage() {
     const input = document.getElementById('userInput');
     const text = input.value.trim();
     const sessId = document.getElementById('currentSessionId').value;
-    
-    // Allow sending if there is text OR a file
     if(!text && !selectedFile) return;
     
-    // Display Message
     let displayText = text;
     if(selectedFile) displayText += ` [Attached: ${selectedFile.name}]`;
+    if(isWebSearch) displayText += ` 🌐`;
+    
     appendMessageHTML("You", displayText, "user");
     
     input.value = '';
     setStatus("Processing...");
     isTyping = true;
-
     try {
-        // Use FormData for File Upload
         const formData = new FormData();
         formData.append('message', text);
         formData.append('session_id', sessId);
-        if(selectedFile) {
-            formData.append('file', selectedFile);
-        }
+        formData.append('use_web', isWebSearch); // SEND WEB FLAG
+        if(selectedFile) formData.append('file', selectedFile);
 
-        const res = await fetch('/api/process_message', {
-            method: 'POST',
-            body: formData // No Content-Type header needed, browser sets it
-        });
-        
+        const res = await fetch('/api/process_message', { method: 'POST', body: formData });
         const data = await res.json();
-        
-        // Clear file after sending
         clearFile();
-
         setStatus("Receiving Stream...");
         await typeEffectMessage("NORA", data.response, "assistant", data.timestamp);
-        
         if(data.action && data.action.type === 'open_url') window.open(data.action.url, '_blank');
-        
         const sessRes = await fetch('/api/get_sessions');
         const sessData = await sessRes.json();
         allSessions = sessData.sessions;
-        
         speak(data.response);
     } catch (e) { appendMessageHTML("System", "Connection Error.", "assistant"); } 
     finally { setStatus("Ready"); isTyping = false; }
@@ -254,8 +249,7 @@ function appendMessageHTML(sender, text, role, time=null) {
     const box = document.getElementById('chatBox');
     const timestamp = time || new Date().toLocaleTimeString();
     let cleanText = text.replace(/\*/g, '');
-    let formatted = cleanText.replace(/\n/g, '<br>');
-    const html = `<div class="msg ${role}"><span class="timestamp">${sender} // ${timestamp}</span><div>${formatted}</div></div>`;
+    const html = `<div class="msg ${role}"><span class="timestamp">${sender} // ${timestamp}</span><div>${cleanText.replace(/\n/g, '<br>')}</div></div>`;
     box.insertAdjacentHTML('beforeend', html);
     scrollToBottom();
 }
@@ -285,7 +279,6 @@ function typeEffectMessage(sender, text, role, time=null) {
 function scrollToBottom() { const box = document.getElementById('chatBox'); box.scrollTop = box.scrollHeight; }
 function setStatus(msg) { document.getElementById('status').innerText = msg; }
 
-// ========== FEMALE VOICE LOGIC ==========
 function setupVoice() {
     if ('webkitSpeechRecognition' in window) {
         recognition = new webkitSpeechRecognition(); recognition.continuous = false; recognition.lang = 'en-US';
