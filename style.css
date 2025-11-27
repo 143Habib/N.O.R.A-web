@@ -117,3 +117,29 @@ button { padding: 12px; border: none; cursor: pointer; font-weight: bold; font-f
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 @keyframes blink-red { 0%, 100% { box-shadow: 0 0 5px var(--neon-red); } 50% { box-shadow: 0 0 20px var(--neon-red); } }
 @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+
+.file-preview-area {
+    background: rgba(0, 243, 255, 0.1);
+    border: 1px dashed var(--neon-blue);
+    padding: 10px;
+    margin: 0 30px 10px 30px; 
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--neon-blue);
+    font-size: 0.9rem;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.remove-file-btn {
+    background: transparent;
+    border: none;
+    color: var(--neon-red);
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 1.1rem;
+}
+.remove-file-btn:hover {
+    color: white;
+}
