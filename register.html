@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NORA // REGISTER</title>
+    <!-- Font Awesome for Tech Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -24,7 +26,14 @@
                 <input type="email" id="email" placeholder="EMAIL ADDRESS" autocomplete="off">
                 <input type="text" id="phone" placeholder="PHONE NUMBER" autocomplete="off">
                 <input type="text" id="username" placeholder="SET USER ID" autocomplete="off">
-                <input type="password" id="password" placeholder="SET ACCESS KEY">
+                
+                <!-- PASSWORD WRAPPER -->
+                <div class="password-wrapper">
+                    <input type="password" id="password" placeholder="SET ACCESS KEY">
+                    <button class="password-toggle-btn" onclick="togglePasswordVisibility('password', this)" type="button">
+                        <i class="fa-solid fa-eye"></i>
+                    </button>
+                </div>
             </div>
             
             <div class="btn-group" style="margin-top: 30px;">
