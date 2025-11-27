@@ -2,14 +2,12 @@ import os
 import json
 import hashlib
 import subprocess
-import webbrowser
 import psutil
 import pyautogui
-import base64
-import iocleart
 from datetime import datetime
+# FIX: Added 'render_template' to the imports below
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
-from PIL import Image
+from duckduckgo_search import DDGS 
 
 # Optional: import ollama
 try:
@@ -24,8 +22,7 @@ app.secret_key = "NORA_SECRET_KEY_CHANGE_THIS"
 # ========== CONFIG ==========
 USERS_FILE = "users.json"
 CHAT_FILE_TEMPLATE = "chat_{username}.json"
-# We use Llama3 for text, Llava for images
-OLLAMA_TEXT_MODEL = "llama3:8b" 
+OLLAMA_TEXT_MODEL = "llama3:8b" # Use 'llama3.2' if you have a strong GPU
 OLLAMA_VISION_MODEL = "llava" 
 
 # ========== Utilities ==========
@@ -44,6 +41,30 @@ def safe_save_json(path, obj):
 def hash_password(password):
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
+# ========== ROBUST WEB SEARCH LOGIC ==========
+def perform_web_search(query):
+    print(f"DEBUG: Attempting to search for: {query}") 
+    try:
+        results = DDGS().text(query, region='wt-wt', safesearch='off', max_results=4)
+        
+        if not results:
+            print("DEBUG: Search returned no results.")
+            return None
+        
+        # Format results clearly for the AI
+        context_str = "--- START OF REAL-TIME SEARCH RESULTS ---\n"
+        for i, r in enumerate(results):
+            context_str += f"Result {i+1}:\nTitle: {r['title']}\nSnippet: {r['body']}\nSource: {r['href']}\n\n"
+        context_str += "--- END OF SEARCH RESULTS ---\n"
+        
+        print("DEBUG: Search successful.")
+        return context_str
+
+    except Exception as e:
+        print(f"DEBUG: Search FAILED with error: {e}")
+        return None
+
+# ========== System Command Logic ==========
 def execute_system_command(cmd_lower):
     if "notepad" in cmd_lower:
         subprocess.Popen("notepad")
@@ -146,12 +167,7 @@ def new_session():
     if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
     filename = CHAT_FILE_TEMPLATE.format(username=session['username'])
     data = safe_load_json(filename, {"sessions": []})
-    new_sess = {
-        "session_id": datetime.now().strftime("%Y%m%d%H%M%S"), 
-        "start_time": now_ts(), 
-        "title": "New Operation", 
-        "messages": []
-    }
+    new_sess = {"session_id": datetime.now().strftime("%Y%m%d%H%M%S"), "start_time": now_ts(), "title": "New Operation", "messages": []}
     data["sessions"].append(new_sess)
     safe_save_json(filename, data)
     return jsonify(new_sess)
@@ -203,9 +219,10 @@ def clear_session():
 def process_message():
     if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
     
-    # Handle Form Data (File + Text)
+    # Handle Data
     user_msg = request.form.get('message', '')
     session_id = request.form.get('session_id')
+    use_web = request.form.get('use_web') == 'true' 
     uploaded_file = request.files.get('file')
     
     filename = CHAT_FILE_TEMPLATE.format(username=session['username'])
@@ -214,10 +231,9 @@ def process_message():
     current_sess = next((s for s in data["sessions"] if s["session_id"] == session_id), None)
     if not current_sess: return jsonify({"error": "Session not found"}), 404
 
-    # Save User Msg
     display_content = user_msg
-    if uploaded_file:
-        display_content += f" [Attached: {uploaded_file.filename}]"
+    if uploaded_file: display_content += f" [Attached: {uploaded_file.filename}]"
+    if use_web: display_content += " [WEB SEARCH]"
     
     current_sess["messages"].append({"timestamp": now_ts(), "role": "user", "content": display_content})
     
@@ -225,52 +241,72 @@ def process_message():
     response_text = ""
     action = None
     
-    # 1. System Commands (Text Only)
+    # 1. System Commands
     if not uploaded_file:
         sys_resp, sys_action = execute_system_command(msg_lower)
         if sys_resp:
             response_text = sys_resp
             action = sys_action
             
-    # 2. AI Processing (Text OR Vision)
+    # 2. AI Processing
     if not response_text:
         if OLLAMA_AVAILABLE:
             try:
-                # --- CASE A: IMAGE UPLOAD (VISION) ---
+                # A. IMAGE
                 if uploaded_file and uploaded_file.mimetype.startswith('image/'):
-                    # Convert image to bytes for Ollama
                     image_bytes = uploaded_file.read()
-                    
-                    res = ollama.generate(
-                        model=OLLAMA_VISION_MODEL,
-                        prompt=user_msg if user_msg else "Describe this image.",
-                        images=[image_bytes]
-                    )
+                    res = ollama.generate(model=OLLAMA_VISION_MODEL, prompt=user_msg if user_msg else "Describe this image.", images=[image_bytes])
                     response_text = res['response']
                 
-                # --- CASE B: TEXT FILE UPLOAD ---
+                # B. TEXT FILE
                 elif uploaded_file and uploaded_file.mimetype.startswith('text/'):
                     file_content = uploaded_file.read().decode('utf-8')
-                    full_prompt = f"User uploaded a file:\n{file_content}\n\nInstruction: {user_msg}"
-                    
                     res = ollama.chat(model=OLLAMA_TEXT_MODEL, messages=[
-                        {"role": "system", "content": "You are NORA. Analyze the provided file content."},
-                        {"role": "user", "content": full_prompt}
+                        {"role": "system", "content": "Analyze the file provided."},
+                        {"role": "user", "content": f"File:\n{file_content}\n\nTask: {user_msg}"}
                     ])
                     response_text = res['message']['content']
 
-                # --- CASE C: NORMAL TEXT CHAT ---
+                # C. WEB SEARCH ENABLED
+                elif use_web:
+                    search_context = perform_web_search(user_msg)
+                    
+                    if search_context:
+                        system_prompt = (
+                            "You are NORA. I have performed a real-time web search for you. "
+                            "You MUST use the provided search results below to answer the user's question. "
+                            "Do not use your old internal knowledge if it conflicts with these results. "
+                            "If the search results mention current events (like Messi in Miami), use that info.\n\n"
+                            f"{search_context}"
+                        )
+                    else:
+                        system_prompt = (
+                            "You are NORA. I tried to search the web but the connection failed. "
+                            "Please answer based on your internal knowledge, but warn the user that your data might be outdated."
+                        )
+                    
+                    # Context + History
+                    context_messages = [{"role": "system", "content": system_prompt}]
+                    history = current_sess["messages"][-10:] # Last 10 msgs
+                    for msg in history:
+                        clean = msg["content"].replace("[WEB SEARCH]", "").strip()
+                        context_messages.append({"role": msg["role"], "content": clean})
+                        
+                    res = ollama.chat(model=OLLAMA_TEXT_MODEL, messages=context_messages)
+                    response_text = res['message']['content']
+
+                # D. STANDARD CHAT (MEMORY)
                 else:
-                    res = ollama.chat(model=OLLAMA_TEXT_MODEL, messages=[
-                        {"role": "system", "content": "You are NORA. Do not use asterisks. Be concise."},
-                        {"role": "user", "content": user_msg}
-                    ])
+                    context_messages = [{"role": "system", "content": "You are NORA. Answer concisely. Do not use asterisks."}]
+                    history = current_sess["messages"][-20:]
+                    for msg in history:
+                        context_messages.append({"role": msg["role"], "content": msg["content"]})
+
+                    res = ollama.chat(model=OLLAMA_TEXT_MODEL, messages=context_messages)
                     response_text = res['message']['content']
 
             except Exception as e:
-                response_text = f"AI Error: {str(e)}"
-                if "pull" in str(e) and uploaded_file:
-                    response_text += " (Please run 'ollama pull llava' in terminal for image support)"
+                response_text = f"System Error: {str(e)}"
         else:
             response_text = "System offline. AI module not detected."
 
