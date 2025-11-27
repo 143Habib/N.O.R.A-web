@@ -12,18 +12,35 @@ function runQuickCmd(command) { document.getElementById('userInput').value = com
 
 // ========== MUTE LOGIC ==========
 let isMuted = false;
-
 function toggleMute() {
     isMuted = !isMuted;
     const btn = document.getElementById('muteBtn');
     if (isMuted) {
         btn.innerText = '🔇';
         btn.classList.add('muted-active');
-        window.speechSynthesis.cancel(); // Stop talking immediately
+        window.speechSynthesis.cancel();
     } else {
         btn.innerText = '🔊';
         btn.classList.remove('muted-active');
     }
+}
+
+// ========== FILE UPLOAD LOGIC ==========
+let selectedFile = null;
+
+function handleFileSelect() {
+    const fileInput = document.getElementById('fileInput');
+    if(fileInput.files.length > 0) {
+        selectedFile = fileInput.files[0];
+        document.getElementById('fileName').innerText = selectedFile.name;
+        document.getElementById('filePreviewArea').style.display = 'flex';
+    }
+}
+
+function clearFile() {
+    selectedFile = null;
+    document.getElementById('fileInput').value = "";
+    document.getElementById('filePreviewArea').style.display = 'none';
 }
 
 // ========== AUTHENTICATION ==========
@@ -50,26 +67,18 @@ async function doRegister() {
     const phone = document.getElementById('phone').value;
     const user = document.getElementById('username').value;
     const pass = document.getElementById('password').value;
-    
     if(!name || !email || !user || !pass) {
         document.getElementById('error').innerText = "All fields except phone are required.";
         return;
     }
-
     const res = await fetch('/register', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            username: user, password: pass, name: name, email: email, phone: phone
-        })
+        body: JSON.stringify({username: user, password: pass, name: name, email: email, phone: phone})
     });
     const data = await res.json();
-    if(data.status === 'success') { 
-        alert("Identity Created. Proceed to Login."); 
-        window.location.href = '/login'; 
-    }
+    if(data.status === 'success') { alert("Identity Created. Proceed to Login."); window.location.href = '/login'; }
     else { document.getElementById('error').innerText = data.message; }
 }
-
 function logout() { window.location.href = '/logout'; }
 
 // ========== CHAT ENGINE ==========
@@ -94,27 +103,22 @@ async function loadSessions() {
     allSessions = data.sessions;
     const list = document.getElementById('sessionList');
     list.innerHTML = '';
-    
     [...allSessions].reverse().forEach(s => {
         const div = document.createElement('div');
         div.className = 'session-item';
         div.id = `sess-${s.session_id}`;
         const displayTitle = s.title ? s.title : `${s.start_time.split(' ')[0]} ${s.start_time.split(' ')[1]}`;
-        
         div.innerHTML = `
             <div class="session-click-area" onclick="loadChat('${s.session_id}')">
-                <strong>${displayTitle}</strong><br>
-                <small>${s.start_time.split(' ')[0]}</small>
+                <strong>${displayTitle}</strong><br><small>${s.start_time.split(' ')[0]}</small>
             </div>
             <div class="session-menu-btn" onclick="toggleSessionMenu(event, '${s.session_id}')">⋮</div>
             <div class="session-dropdown" id="menu-${s.session_id}">
                 <div class="dropdown-item" onclick="renameSession('${s.session_id}')">Edit Name</div>
                 <div class="dropdown-item delete" onclick="deleteSession('${s.session_id}')">Delete</div>
-            </div>
-        `;
+            </div>`;
         list.appendChild(div);
     });
-    
     if (allSessions.length > 0) {
         const current = document.getElementById('currentSessionId').value;
         if (!current) loadChat(allSessions[allSessions.length - 1].session_id);
@@ -132,7 +136,6 @@ function toggleSessionMenu(event, sessId) {
     const menu = document.getElementById(`menu-${sessId}`);
     if(menu) menu.classList.add('show');
 }
-
 async function renameSession(sessId) {
     const newName = prompt("Enter new session name:");
     if(newName) {
@@ -143,7 +146,6 @@ async function renameSession(sessId) {
         loadSessions();
     }
 }
-
 async function deleteSession(sessId) {
     if(confirm("Are you sure you want to delete this history?")) {
         await fetch('/api/delete_session', {
@@ -153,27 +155,21 @@ async function deleteSession(sessId) {
         if(document.getElementById('currentSessionId').value === sessId) {
             document.getElementById('currentSessionId').value = "";
             location.reload();
-        } else {
-            loadSessions();
-        }
+        } else { loadSessions(); }
     }
 }
-
 async function newSession() {
     const res = await fetch('/api/new_session', {method: 'POST'});
     const sess = await res.json();
     document.getElementById('currentSessionId').value = sess.session_id;
     document.getElementById('chatBox').innerHTML = '';
-    
     const fullName = document.getElementById('userDisplayName').value || "Operator";
     const firstName = fullName.trim().split(' ')[0];
     const greeting = `Hello ${firstName}, how can I help you?`;
-    
     await typeEffectMessage("NORA", greeting, "assistant");
     speak(greeting);
     loadSessions();
 }
-
 function loadChat(sessionId) {
     const session = allSessions.find(s => s.session_id === sessionId);
     if(!session) return;
@@ -188,7 +184,6 @@ function loadChat(sessionId) {
     });
     scrollToBottom();
 }
-
 async function clearChat() {
     const sessId = document.getElementById('currentSessionId').value;
     if(sessId) {
@@ -201,7 +196,7 @@ async function clearChat() {
     }
 }
 
-// ========== MESSAGING ==========
+// ========== MESSAGING (UPDATED FOR FILE UPLOAD) ==========
 function handleEnter(e) { if(e.key === 'Enter') sendMessage(); }
 
 async function sendMessage() {
@@ -209,23 +204,47 @@ async function sendMessage() {
     const input = document.getElementById('userInput');
     const text = input.value.trim();
     const sessId = document.getElementById('currentSessionId').value;
-    if(!text) return;
-    appendMessageHTML("You", text, "user");
+    
+    // Allow sending if there is text OR a file
+    if(!text && !selectedFile) return;
+    
+    // Display Message
+    let displayText = text;
+    if(selectedFile) displayText += ` [Attached: ${selectedFile.name}]`;
+    appendMessageHTML("You", displayText, "user");
+    
     input.value = '';
     setStatus("Processing...");
     isTyping = true;
+
     try {
+        // Use FormData for File Upload
+        const formData = new FormData();
+        formData.append('message', text);
+        formData.append('session_id', sessId);
+        if(selectedFile) {
+            formData.append('file', selectedFile);
+        }
+
         const res = await fetch('/api/process_message', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({message: text, session_id: sessId})
+            method: 'POST',
+            body: formData // No Content-Type header needed, browser sets it
         });
+        
         const data = await res.json();
+        
+        // Clear file after sending
+        clearFile();
+
         setStatus("Receiving Stream...");
         await typeEffectMessage("NORA", data.response, "assistant", data.timestamp);
+        
         if(data.action && data.action.type === 'open_url') window.open(data.action.url, '_blank');
+        
         const sessRes = await fetch('/api/get_sessions');
         const sessData = await sessRes.json();
         allSessions = sessData.sessions;
+        
         speak(data.response);
     } catch (e) { appendMessageHTML("System", "Connection Error.", "assistant"); } 
     finally { setStatus("Ready"); isTyping = false; }
@@ -234,11 +253,8 @@ async function sendMessage() {
 function appendMessageHTML(sender, text, role, time=null) {
     const box = document.getElementById('chatBox');
     const timestamp = time || new Date().toLocaleTimeString();
-    
-    // CLEAN TEXT: Remove Asterisks (*)
     let cleanText = text.replace(/\*/g, '');
     let formatted = cleanText.replace(/\n/g, '<br>');
-    
     const html = `<div class="msg ${role}"><span class="timestamp">${sender} // ${timestamp}</span><div>${formatted}</div></div>`;
     box.insertAdjacentHTML('beforeend', html);
     scrollToBottom();
@@ -254,10 +270,7 @@ function typeEffectMessage(sender, text, role, time=null) {
         box.appendChild(msgDiv);
         scrollToBottom();
         const contentDiv = msgDiv.querySelector('.msg-content');
-        
-        // CLEAN TEXT FOR DISPLAY
         let cleanText = text.replace(/\*/g, '');
-        
         let i = 0; const speed = 15;
         function type() {
             if (i < cleanText.length) {
@@ -282,18 +295,12 @@ function setupVoice() {
     } else { document.getElementById('micBtn').style.display = 'none'; }
 }
 function toggleVoice() { if(recognition) recognition.start(); }
-
 function speak(text) {
-    // If Muted, do not speak
     if (isMuted) return;
     if (!('speechSynthesis' in window)) return;
-    
     window.speechSynthesis.cancel();
-    
-    // Clean text for speech too (remove asterisks)
     const cleanText = text.replace(/[*`_#]/g, '');
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    
     let voices = window.speechSynthesis.getVoices();
     if (voices.length === 0) {
         window.speechSynthesis.onvoiceschanged = function() {
