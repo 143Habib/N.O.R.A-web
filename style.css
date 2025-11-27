@@ -143,3 +143,10 @@ button { padding: 12px; border: none; cursor: pointer; font-weight: bold; font-f
 .remove-file-btn:hover {
     color: white;
 }
+
+.active-web {
+    background-color: var(--neon-green) !important;
+    color: black !important;
+    box-shadow: 0 0 10px var(--neon-green);
+    border-color: var(--neon-green) !important;
+}
