@@ -10,9 +10,33 @@ function toggleSidebar() { document.getElementById('sidebar').classList.toggle('
 function toggleTools() { document.getElementById('toolsSidebar').classList.toggle('closed'); }
 function runQuickCmd(command) { document.getElementById('userInput').value = command; sendMessage(); }
 
-// ========== MUTE, FILE & WEB SEARCH ==========
+// NEW: PASSWORD TOGGLE LOGIC (Updated for Icons)
+function togglePasswordVisibility(id, btn) {
+    const input = document.getElementById(id);
+    const icon = btn.querySelector('i'); // Select the icon inside the button
+    
+    if (input.type === "password") {
+        input.type = "text";
+        // Switch to Slashed Eye
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+        // Add a slight red tint to indicate 'revealed' danger
+        icon.style.color = "var(--neon-red)";
+        icon.style.textShadow = "0 0 5px var(--neon-red)";
+    } else {
+        input.type = "password";
+        // Switch back to Normal Eye
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+        // Reset color
+        icon.style.color = "var(--neon-blue)";
+        icon.style.textShadow = "0 0 5px var(--neon-blue)";
+    }
+}
+
+// ========== MUTE, FILE & WEB ==========
 let isMuted = false;
-let isWebSearch = false; // WEB SEARCH STATE
+let isWebSearch = false;
 
 function toggleMute() {
     isMuted = !isMuted;
@@ -31,7 +55,7 @@ function toggleWebSearch() {
     isWebSearch = !isWebSearch;
     const btn = document.getElementById('webBtn');
     if (isWebSearch) {
-        btn.classList.add('active-web'); // Apply glowing style
+        btn.classList.add('active-web');
     } else {
         btn.classList.remove('active-web');
     }
@@ -205,7 +229,6 @@ async function clearChat() {
     }
 }
 
-// ========== SEND MESSAGE (UPDATED) ==========
 function handleEnter(e) { if(e.key === 'Enter') sendMessage(); }
 
 async function sendMessage() {
@@ -228,7 +251,7 @@ async function sendMessage() {
         const formData = new FormData();
         formData.append('message', text);
         formData.append('session_id', sessId);
-        formData.append('use_web', isWebSearch); // SEND WEB FLAG
+        formData.append('use_web', isWebSearch); 
         if(selectedFile) formData.append('file', selectedFile);
 
         const res = await fetch('/api/process_message', { method: 'POST', body: formData });
