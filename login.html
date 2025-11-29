@@ -4,43 +4,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NORA // ACCESS</title>
-    <!-- Font Awesome for Tech Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+    <div class="bg-grid"></div><div class="vignette"></div>
     <div id="splash-screen">
         <div class="logo-container" onclick="unlockSystem()">
             <img src="/static/logo.png" alt="NORA Logo" class="logo-img">
         </div>
-        <div class="click-hint">CLICK THE CORE TO INITIALIZE</div>
+        <div class="click-hint">[ Click the CORE ]</div>
     </div>
     <div class="login-wrapper">
         <div class="container">
             <div style="text-align:center; margin-bottom:20px;">
-                <img src="/static/logo.png" style="width: 80px; margin-bottom: 10px;">
-                <h1 style="font-size: 2.5rem; margin-bottom:0;">N.O.R.A</h1>
-                <small style="color:var(--neon-blue); letter-spacing:3px;">NEURAL OPERATIONS INTERFACE</small>
+                <img src="/static/logo.png" style="width: 70px;">
+                <h1 style="font-size: 3.5rem; margin: 10px 0;">N.O.R.A</h1>
+                <small style="color:var(--neon-cyan); letter-spacing:3px;">NEURAL OPERATIONS</small>
             </div>
             <div class="card">
-                <h3 style="margin-bottom:20px; border-bottom:1px solid var(--text-dim); padding-bottom:10px;">Identity Verification</h3>
-                
-                <input type="text" id="username" placeholder="USER ID">
-                
-                <!-- PASSWORD WRAPPER -->
+               
+                <input type="text" id="username" placeholder="OPERATOR ID">
                 <div class="password-wrapper">
                     <input type="password" id="password" placeholder="ACCESS KEY">
-                    <!-- Pass 'this' to the function to change the icon -->
-                    <button class="password-toggle-btn" onclick="togglePasswordVisibility('password', this)" type="button">
-                        <i class="fa-solid fa-eye"></i>
-                    </button>
+                    <button class="password-toggle-btn" onclick="togglePasswordVisibility('password', this)" type="button"><i class="fa-solid fa-eye"></i></button>
                 </div>
-
                 <div class="btn-group">
-                    <button onclick="doLogin()" class="btn-primary">Initialize</button>
-                    <button onclick="window.location.href='/register'" class="btn-secondary">New User</button>
+                    <button onclick="doLogin()" class="btn-primary">INITIALIZE</button>
+                    <button onclick="window.location.href='/register'" class="btn-secondary">REGISTER</button>
                 </div>
-                <p id="error" class="error" style="min-height:20px;"></p>
+                <p id="error" class="error" style="min-height:20px; color: #ff003c; margin-top:15px; text-align:center;"></p>
             </div>
         </div>
     </div>
