@@ -4,44 +4,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NORA // REGISTER</title>
-    <!-- Font Awesome for Tech Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; width: 100vw;">
-        <div style="text-align:center; margin-bottom:30px;">
-            <div style="margin-bottom: 10px; display: inline-block;">
-                <img src="/static/logo.png" style="width: 60px;">
-            </div>
-            <h1 style="font-size: 2.5rem; margin: 0; text-shadow: 0 0 15px var(--neon-blue);">NEW ACCESS</h1>
-            <small style="color:var(--neon-blue); letter-spacing:4px; font-size: 0.8rem;">CREATE OPERATOR ID</small>
+    <div class="bg-grid"></div><div class="vignette"></div>
+    <div class="container">
+        <div style="text-align:center; margin-bottom:20px;">
+            <img src="/static/logo.png" style="width: 60px;">
+            <h1 style="font-size: 2.5rem; margin: 10px 0;">NEW UPLINK</h1>
+            <small style="color:var(--neon-pink); letter-spacing:4px;">CREATE OPERATOR ID</small>
         </div>
-        
-        <div class="card" style="width: 400px; max-width: 90vw;">
-            <h3 style="margin-bottom:25px; border-bottom:1px solid rgba(0, 243, 255, 0.2); padding-bottom:15px;">REGISTRATION FORM</h3>
-            
-            <div style="display: flex; flex-direction: column; gap: 15px;">
-                <input type="text" id="name" placeholder="FULL NAME" autocomplete="off">
-                <input type="email" id="email" placeholder="EMAIL ADDRESS" autocomplete="off">
-                <input type="text" id="phone" placeholder="PHONE NUMBER" autocomplete="off">
-                <input type="text" id="username" placeholder="SET USER ID" autocomplete="off">
-                
-                <!-- PASSWORD WRAPPER -->
-                <div class="password-wrapper">
-                    <input type="password" id="password" placeholder="SET ACCESS KEY">
-                    <button class="password-toggle-btn" onclick="togglePasswordVisibility('password', this)" type="button">
-                        <i class="fa-solid fa-eye"></i>
-                    </button>
-                </div>
+        <div class="card">
+            <input type="text" id="name" placeholder="FULL DESIGNATION" autocomplete="off">
+            <input type="email" id="email" placeholder="EMAIL FREQUENCY" autocomplete="off">
+            <input type="text" id="phone" placeholder="COMMS NUMBER" autocomplete="off">
+            <input type="text" id="username" placeholder="SET OPERATOR ID" autocomplete="off">
+            <div class="password-wrapper">
+                <input type="password" id="password" placeholder="SET SECURITY KEY">
+                <button class="password-toggle-btn" onclick="togglePasswordVisibility('password', this)" type="button"><i class="fa-solid fa-eye"></i></button>
             </div>
-            
-            <div class="btn-group" style="margin-top: 30px;">
-                <button onclick="doRegister()" class="btn-primary">CREATE ID</button>
-                <button onclick="window.location.href='/login'" class="btn-danger">CANCEL</button>
+            <div class="btn-group">
+                <button onclick="doRegister()" class="btn-primary">CONFIRM</button>
+                <button onclick="window.location.href='/login'" class="btn-danger">ABORT</button>
             </div>
-            
-            <p id="error" class="error" style="min-height: 20px; margin-top: 10px;"></p>
+            <p id="error" class="error" style="min-height: 20px; color: #ff003c; margin-top: 15px; text-align: center;"></p>
         </div>
     </div>
     <script src="/static/script.js"></script>
