@@ -5,7 +5,6 @@ import subprocess
 import psutil
 import pyautogui
 from datetime import datetime
-# FIX: Added 'render_template' to the imports below
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from duckduckgo_search import DDGS 
 
@@ -22,7 +21,7 @@ app.secret_key = "NORA_SECRET_KEY_CHANGE_THIS"
 # ========== CONFIG ==========
 USERS_FILE = "users.json"
 CHAT_FILE_TEMPLATE = "chat_{username}.json"
-OLLAMA_TEXT_MODEL = "llama3:8b" # Use 'llama3.2' if you have a strong GPU
+OLLAMA_TEXT_MODEL = "llama3:8b" 
 OLLAMA_VISION_MODEL = "llava" 
 
 # ========== Utilities ==========
