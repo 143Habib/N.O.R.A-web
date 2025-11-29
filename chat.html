@@ -4,81 +4,63 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NORA // TERMINAL</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+    <div class="bg-grid"></div><div class="vignette"></div>
     <div class="app-layout">
-        <!-- LEFT SIDEBAR -->
         <aside class="sidebar" id="sidebar">
             <div class="brand">
                 <img src="/static/logo.png" class="mini-logo" alt="NORA">
                 <h2>N.O.R.A</h2>
-                <small>SYSTEM ONLINE // {{ name }}</small>
+                <small style="color: var(--neon-cyan);">SYSTEM ONLINE // {{ name }}</small>
             </div>
-            <div class="controls">
-                <button onclick="newSession()" class="btn-secondary" style="width:100%">+ New Operation</button>
+            <div style="padding: 15px;">
+                <button onclick="newSession()" class="btn-secondary" style="width:100%"><i class="fa-solid fa-plus"></i> NEW OPERATION</button>
             </div>
             <div class="session-list" id="sessionList"></div>
-            <div class="controls" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1);">
-                <button onclick="logout()" class="btn-danger" style="width:100%">Disconnect</button>
+            <div style="padding: 15px; margin-top: auto;">
+                <button onclick="logout()" class="btn-danger" style="width:100%"><i class="fa-solid fa-power-off"></i> DISCONNECT</button>
             </div>
         </aside>
 
-        <!-- MAIN INTERFACE -->
         <main class="chat-area">
             <div class="chat-header">
-                <button class="toggle-btn" onclick="toggleSidebar()">☰</button>
-                <div class="chat-title-group">
-                    <h3>Neural Operations Log</h3>
-                    <span id="status" class="status">Ready</span>
-                </div>
-                <button class="toggle-btn" onclick="toggleTools()">⚙️</button>
+                <button class="toggle-btn" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+                <div class="chat-title-group"><h3 style="color: white;">NEURAL LOG</h3><span id="status" class="status">ONLINE</span></div>
+                <button class="toggle-btn" onclick="toggleTools()"><i class="fa-solid fa-sliders"></i></button>
             </div>
-            
             <div id="chatBox" class="chat-box"></div>
-            
-            <div id="filePreviewArea" class="file-preview-area" style="display:none;">
-                <span id="fileName">file.jpg</span>
-                <button onclick="clearFile()" class="remove-file-btn">✖</button>
-            </div>
-
+            <div id="filePreviewArea" class="file-preview-area" style="display:none;"><span id="fileName"></span><button onclick="clearFile()" class="remove-file-btn"><i class="fa-solid fa-xmark"></i></button></div>
             <div class="input-area">
                 <input type="file" id="fileInput" hidden onchange="handleFileSelect()">
-                <button id="uploadBtn" onclick="document.getElementById('fileInput').click()" class="btn-icon" style="margin-right:5px; color: var(--neon-green); border-color: var(--neon-green);">📎</button>
-                
-                <!-- WEB TOGGLE -->
-                <button id="webBtn" onclick="toggleWebSearch()" class="btn-icon" style="margin-right:5px;" title="Toggle Web Search">🌐</button>
-
-                <button id="micBtn" onclick="toggleVoice()" class="btn-icon"><span id="micIcon">🎤</span></button>
-                <button id="muteBtn" onclick="toggleMute()" class="btn-icon" style="margin-right: 5px;">🔊</button>
-                
-                <input type="text" id="userInput" placeholder="Enter command..." onkeypress="handleEnter(event)" autocomplete="off">
-                <button onclick="clearChat()" class="btn-secondary" style="width: auto; padding: 0 15px; border-color: #ff003c; color: #ff003c;">CLR</button>
-                <button onclick="sendMessage()" class="btn-primary">EXECUTE</button>
+                <button id="uploadBtn" onclick="document.getElementById('fileInput').click()" class="btn-icon"><i class="fa-solid fa-paperclip"></i></button>
+                <button id="webBtn" onclick="toggleWebSearch()" class="btn-icon"><i class="fa-solid fa-globe"></i></button>
+                <button id="micBtn" onclick="toggleVoice()" class="btn-icon"><i class="fa-solid fa-microphone"></i></button>
+                <button id="muteBtn" onclick="toggleMute()" class="btn-icon" style="margin-right: 10px;"><i class="fa-solid fa-volume-high"></i></button>
+                <input type="text" id="userInput" placeholder="Awaiting Command..." onkeypress="handleEnter(event)" autocomplete="off">
+                <button onclick="clearChat()" class="btn-secondary" style="margin-right:10px;"><i class="fa-solid fa-trash"></i></button>
+                <button onclick="sendMessage()" class="btn-primary">SEND <i class="fa-solid fa-caret-right"></i></button>
             </div>
         </main>
 
-        <!-- RIGHT SIDEBAR -->
         <aside class="sidebar-right closed" id="toolsSidebar">
-            <div class="brand">
-                <h3>QUICK ACCESS</h3>
-                <small>SYSTEM OVERRIDES</small>
-            </div>
+            <div class="brand"><h3 style="color: var(--neon-pink);">TOOLS</h3><small>SYSTEM OVERRIDES</small></div>
             <div class="tools-grid">
-                <button class="tool-btn" onclick="runQuickCmd('open calculator')">🧮 Calc</button>
-                <button class="tool-btn" onclick="runQuickCmd('open notepad')">📝 Note</button>
-                <button class="tool-btn" onclick="runQuickCmd('open camera')">📷 Cam</button>
-                <button class="tool-btn" onclick="runQuickCmd('take screenshot')">📸 Snap</button>
-                <button class="tool-btn" onclick="runQuickCmd('open task manager')">⚙️ Task</button>
-                <button class="tool-btn" onclick="runQuickCmd('open control panel')">🎛️ Cntrl</button>
-                <button class="tool-btn" onclick="runQuickCmd('check battery')">🔋 Batt</button>
-                <button class="tool-btn" onclick="runQuickCmd('what time is it')">⌚ Time</button>
-                <button class="tool-btn" onclick="runQuickCmd('open google')">🌐 Web</button>
-                <button class="tool-btn" onclick="runQuickCmd('open word')">📄 Word</button>
+                <button class="tool-btn" onclick="runQuickCmd('open calculator')"><i class="fa-solid fa-calculator"></i> CALC</button>
+                <button class="tool-btn" onclick="runQuickCmd('open notepad')"><i class="fa-solid fa-note-sticky"></i> NOTE</button>
+                <button class="tool-btn" onclick="runQuickCmd('open camera')"><i class="fa-solid fa-camera"></i> CAM</button>
+                <button class="tool-btn" onclick="runQuickCmd('take screenshot')"><i class="fa-solid fa-crop"></i> SNAP</button>
+                <button class="tool-btn" onclick="runQuickCmd('open task manager')"><i class="fa-solid fa-list-check"></i> TASK</button>
+                <button class="tool-btn" onclick="runQuickCmd('open control panel')"><i class="fa-solid fa-gears"></i> CNTRL</button>
+                <button class="tool-btn" onclick="runQuickCmd('check battery')"><i class="fa-solid fa-battery-half"></i> PWR</button>
+                <button class="tool-btn" onclick="runQuickCmd('what time is it')"><i class="fa-regular fa-clock"></i> TIME</button>
+                <button class="tool-btn" onclick="runQuickCmd('open google')"><i class="fa-brands fa-google"></i> WEB</button>
+                <button class="tool-btn" onclick="runQuickCmd('open word')"><i class="fa-solid fa-file-word"></i> DOCS</button>
             </div>
         </aside>
     </div>
-    
     <input type="hidden" id="currentSessionId" value="">
     <input type="hidden" id="userDisplayName" value="{{ name }}">
     <script src="/static/script.js"></script>
