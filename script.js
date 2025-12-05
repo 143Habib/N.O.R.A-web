@@ -1,3 +1,85 @@
+// ========== GLOBALS & SOCKET ==========
+const tabId = Math.random().toString(36).substr(2, 9); // Unique ID for this browser tab
+const socket = io(); // Connect to WebSocket
+
+socket.on('connect', () => {
+    console.log("Connected to Neural Sync. Tab ID:", tabId);
+});
+
+// LISTEN: Receive messages from other devices (or server)
+socket.on('sync_message', (data) => {
+    const currentSession = document.getElementById('currentSessionId').value;
+    
+    // Only update if looking at the same session
+    if (data.session_id !== currentSession) return;
+
+    // Logic: 
+    // If it's a USER message AND it came from THIS tab, ignore it (we already appended it manually).
+    // If it's a USER message from another tab, show it.
+    // If it's an AI message, show it (or use type effect).
+    
+    if (data.role === 'user') {
+        if (data.origin_tab !== tabId) {
+            appendMessageHTML(data.sender, data.content, data.role);
+        }
+    } else if (data.role === 'assistant') {
+        // For AI response, usually the Sender (Device A) waits for the Fetch response to type it out.
+        // We need to prevent double typing.
+        // Strategy: The Sender (Device A) handles the specific AI typing via the fetch callback.
+        // The Receiver (Device B) handles it here.
+        if (data.origin_tab === 'server') {
+            // Check if this is a response to a request initiated by THIS tab?
+            // Actually, simply check if the last message in chat is already this content to avoid duplication,
+            // or rely on the fact that fetch handles the sender.
+            
+            // To simplify: Let's let the socket handle it for OBSERVERS, 
+            // but the Sender handles it via Fetch to ensure Action triggers work properly on the controller.
+            
+            // We can't easily know if 'fetch' is currently running for this specific message.
+            // WORKAROUND: We will assume Fetch handles the sender. 
+            // The sender needs a flag.
+        }
+    }
+});
+
+// Handling specific case: Observer needs to see AI text. 
+// Refined Logic for 'sync_message':
+socket.on('sync_message', (data) => {
+    const currentSession = document.getElementById('currentSessionId').value;
+    if (data.session_id !== currentSession) return;
+
+    if (data.role === 'user' && data.origin_tab !== tabId) {
+        // User message from ANOTHER device
+        appendMessageHTML(data.sender, data.content, data.role);
+    }
+    
+    if (data.role === 'assistant') {
+        // AI Message. 
+        // If I am the sender, I am currently awaiting the fetch response which does the typeEffect.
+        // So I should ignore this socket event to avoid double text.
+        // But how do I know if I am the sender of the *trigger*?
+        // We'll use a global flag 'isWaitingForResponse'.
+        
+        if (!isWaitingForResponse) {
+             typeEffectMessage(data.sender, data.content, data.role);
+             if(data.action && data.action.type === 'open_url') window.open(data.action.url, '_blank');
+        }
+    }
+});
+
+socket.on('refresh_sessions', () => {
+    loadSessions();
+});
+
+socket.on('sync_clear', (data) => {
+    const currentSession = document.getElementById('currentSessionId').value;
+    if (data.session_id === currentSession) {
+        document.getElementById('chatBox').innerHTML = '';
+    }
+});
+
+let isWaitingForResponse = false; // Flag to prevent double AI typing on the sender device
+
 // ========== UI & ANIMATIONS ==========
 function unlockSystem() {
     const splash = document.getElementById('splash-screen');
@@ -52,10 +134,25 @@ async function doLogin() {
     const user = document.getElementById('username').value;
     const pass = document.getElementById('password').value;
     if (!user || !pass) return;
-    const res = await fetch('/login', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: user, password: pass}) });
+    
+    const res = await fetch('/login', { 
+        method: 'POST', 
+        headers: {'Content-Type': 'application/json'}, 
+        body: JSON.stringify({username: user, password: pass}) 
+    });
+    
     const data = await res.json();
-    if(data.status === 'success') window.location.href = '/chat';
-    else document.getElementById('error').innerText = data.message;
+    
+    if(data.status === 'success') {
+        // Redirect based on role
+        if(data.role === 'admin') {
+            window.location.href = '/admin';
+        } else {
+            window.location.href = '/chat';
+        }
+    } else { 
+        document.getElementById('error').innerText = data.message; 
+    }
 }
 async function doRegister() {
     const name = document.getElementById('name').value;
@@ -132,25 +229,49 @@ function loadChat(id) {
 async function clearChat() {
     const id = document.getElementById('currentSessionId').value;
     await fetch('/api/clear_session', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({session_id:id})});
+    // Visual clear is handled by socket now, but we can clear locally too for speed
     document.getElementById('chatBox').innerHTML = '';
 }
 function handleEnter(e) { if(e.key === 'Enter') sendMessage(); }
+
+// ========== MODIFIED SEND MESSAGE ==========
 async function sendMessage() {
     const input = document.getElementById('userInput'); const text = input.value.trim(); const id = document.getElementById('currentSessionId').value;
     if(!text && !selectedFile) return;
+    
+    // 1. Show message locally immediately
     appendMessageHTML("You", text + (selectedFile?` [File: ${selectedFile.name}]`:'') + (isWebSearch?' 🌐':''), "user");
     input.value = '';
+    
+    isWaitingForResponse = true; // Block socket from doubling AI response
+
     try {
-        const fd = new FormData(); fd.append('message', text); fd.append('session_id', id); fd.append('use_web', isWebSearch);
+        const fd = new FormData(); 
+        fd.append('message', text); 
+        fd.append('session_id', id); 
+        fd.append('use_web', isWebSearch);
+        fd.append('tab_id', tabId); // Send our ID so server knows who sent it
+        
         if(selectedFile) fd.append('file', selectedFile);
+        
         const res = await fetch('/api/process_message', {method:'POST', body:fd});
         const data = await res.json();
+        
         clearFile();
+        
+        // 2. Show AI Response locally (Type effect)
         await typeEffectMessage("NORA", data.response, "assistant");
+        
         if(data.action && data.action.type === 'open_url') window.open(data.action.url, '_blank');
         speak(data.response);
-    } catch(e) { appendMessageHTML("System", "Error.", "assistant"); }
+        
+    } catch(e) { 
+        appendMessageHTML("System", "Error processing command.", "assistant"); 
+    } finally {
+        isWaitingForResponse = false; // Allow socket updates again
+    }
 }
+
 function appendMessageHTML(sender, text, role) {
     const box = document.getElementById('chatBox');
     const clean = text.replace(/\*/g, '').replace(/\n/g, '<br>');
