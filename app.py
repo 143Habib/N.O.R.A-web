@@ -9,53 +9,116 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from flask_socketio import SocketIO, emit, join_room 
 from duckduckgo_search import DDGS 
 
+# Optional: import ollama
 try:
     import ollama
     OLLAMA_AVAILABLE = True
 except Exception:
     OLLAMA_AVAILABLE = False
+    print("WARNING: Ollama library not found. AI features will be limited.")
 
 app = Flask(__name__)
 app.secret_key = "NORA_SECRET_KEY_CHANGE_THIS"
+
+# Initialize SocketIO with Cross-Origin Resource Sharing enabled
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# ========== CONFIG ==========
+# ========== CONFIGURATION ==========
 USERS_FILE = "users.json"
 CHAT_FILE_TEMPLATE = "chat_{username}.json"
 OLLAMA_TEXT_MODEL = "llama3:8b" 
 OLLAMA_VISION_MODEL = "llava" 
 
-# ========== UTILS ==========
-def now_ts(): return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-def get_current_date(): return datetime.now().strftime("%A, %B %d, %Y")
+# ========== UTILITIES ==========
+def now_ts():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+def get_current_date():
+    return datetime.now().strftime("%A, %B %d, %Y")
+
 def safe_load_json(path, default):
     if not os.path.exists(path): return default
     try:
         with open(path, "r", encoding="utf-8") as f: return json.load(f)
     except: return default
+
 def safe_save_json(path, obj):
     with open(path, "w", encoding="utf-8") as f: json.dump(obj, f, indent=2, ensure_ascii=False)
-def hash_password(password): return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
-# ========== COMMANDS & SEARCH ==========
-# (Keep perform_web_search and execute_system_command exactly as they were in previous code)
-# ... [Paste previous perform_web_search and execute_system_command functions here] ...
-# For brevity in this snippet, I assume you kept them. 
-# Make sure execute_system_command is present!
+def hash_password(password):
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
+# ========== WEB SEARCH LOGIC ==========
+def perform_web_search(query):
+    print(f"DEBUG: Searching Web for: {query}") 
+    try:
+        results = []
+        with DDGS() as ddgs:
+            results = list(ddgs.text(query, max_results=5))
+        
+        if not results: return None
+        
+        context_str = f"--- REAL-TIME SEARCH RESULTS ({get_current_date()}) ---\n"
+        for i, r in enumerate(results):
+            context_str += f"Source {i+1}: {r.get('title', 'No Title')}\n"
+            context_str += f"Content: {r.get('body', 'No Content')}\n"
+            context_str += f"Link: {r.get('href', '#')}\n\n"
+        context_str += "--- END OF SEARCH RESULTS ---\n"
+        return context_str
+
+    except Exception as e:
+        print(f"DEBUG: Search FAILED with error: {e}")
+        return None
+
+# ========== SYSTEM COMMAND LOGIC ==========
 def execute_system_command(cmd_lower):
-    # Minimal example if you need to copy-paste again:
-    if "calc" in cmd_lower:
+    # These commands run on the HOST machine (Server/PC)
+    if "notepad" in cmd_lower:
+        subprocess.Popen("notepad")
+        return "Opening Notepad.", None
+    if "calculator" in cmd_lower or "calc" in cmd_lower:
         subprocess.Popen("calc")
         return "Opening Calculator.", None
-    # ... Add other commands ...
+    if "camera" in cmd_lower:
+        subprocess.run("start microsoft.windows.camera:", shell=True)
+        return "Opening Camera.", None
+    if "word" in cmd_lower and "open" in cmd_lower:
+        subprocess.Popen("start winword", shell=True)
+        return "Opening Microsoft Word.", None
+    if "excel" in cmd_lower and "open" in cmd_lower:
+        subprocess.Popen("start excel", shell=True)
+        return "Opening Microsoft Excel.", None
+    if "task manager" in cmd_lower:
+        subprocess.Popen("taskmgr")
+        return "Opening Task Manager.", None
+    if "control panel" in cmd_lower:
+        subprocess.Popen("control")
+        return "Opening Control Panel.", None
+    if "youtube" in cmd_lower and "open" in cmd_lower:
+        return "Opening YouTube.", {"type": "open_url", "url": "https://www.youtube.com"}
+    if "google" in cmd_lower and "open" in cmd_lower:
+        return "Opening Google.", {"type": "open_url", "url": "https://www.google.com"}
+    if "screenshot" in cmd_lower or "snap" in cmd_lower:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"screenshot_{ts}.png"
+        try:
+            pyautogui.screenshot(filename)
+            return f"Screenshot saved as {filename}.", None
+        except Exception:
+            return "Failed to take screenshot (display missing?).", None
+    if "battery" in cmd_lower:
+        try:
+            battery = psutil.sensors_battery()
+            if battery:
+                plugged = "plugged in" if battery.power_plugged else "on battery"
+                return f"Battery is at {battery.percent}% and {plugged}.", None
+            return "Battery information not available.", None
+        except: return "Could not access battery sensors.", None
+    if "time" in cmd_lower:
+        return f"The current time is {datetime.now().strftime('%I:%M %p')}.", None
     return None, None
 
-def perform_web_search(query):
-    # ... Paste previous logic ...
-    return None
-
-# ========== ROUTES ==========
+# ========== ROUTES: AUTHENTICATION ==========
 @app.route('/')
 def index():
     if 'username' in session: 
@@ -71,13 +134,14 @@ def login():
         user = data.get('username')
         passwd = data.get('password')
         
-        # Check regular users
+        # 1. Check Regular Users
         if user in users and users[user]["password"] == hash_password(passwd):
             session['username'] = user
             session['name'] = users[user]['name']
             return jsonify({"status": "success", "role": "user"})
             
-        # Check HARDCODED ADMIN (For safety, you should register this properly later)
+        # 2. Check HARDCODED ADMIN (For God Mode)
+        # In a production app, store this securely in users.json too.
         if user == "admin" and passwd == "admin123": 
             session['username'] = "admin"
             session['name'] = "SYSTEM OVERLORD"
@@ -91,11 +155,16 @@ def register():
     if request.method == 'POST':
         data = request.get_json()
         users = safe_load_json(USERS_FILE, {})
+        
+        # Prevent registering 'admin' or duplicates
         if data.get('username') in users or data.get('username') == 'admin':
             return jsonify({"status": "error", "message": "Username taken"})
+            
         users[data.get('username')] = {
-            "name": data.get('name'), "email": data.get('email'),
-            "phone": data.get('phone'), "password": hash_password(data.get('password')),
+            "name": data.get('name'),
+            "email": data.get('email'),
+            "phone": data.get('phone'),
+            "password": hash_password(data.get('password')),
             "created_at": now_ts()
         }
         safe_save_json(USERS_FILE, users)
@@ -107,29 +176,24 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
+# ========== ROUTES: VIEWS ==========
 @app.route('/chat')
 def chat():
     if 'username' not in session: return redirect(url_for('login'))
     if session['username'] == 'admin': return redirect(url_for('admin_dashboard'))
     return render_template('chat.html', username=session['username'], name=session['name'])
 
-# === NEW ADMIN ROUTE ===
 @app.route('/admin')
 def admin_dashboard():
     if 'username' not in session or session['username'] != 'admin':
         return redirect(url_for('login'))
     
-    # Get list of all registered users for the sidebar
+    # Get user list for sidebar
     users_db = safe_load_json(USERS_FILE, {})
     user_list = [{"username": u, "name": v['name']} for u, v in users_db.items()]
-    
     return render_template('admin.html', name=session['name'], users=user_list)
 
-
-# ========== API ==========
-# ... (Keep get_sessions, new_session, rename_session, delete_session, clear_session) ...
-# ... (Paste them from previous code) ...
-
+# ========== ROUTES: SESSION API ==========
 @app.route('/api/get_sessions', methods=['GET'])
 def get_sessions():
     if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
@@ -138,32 +202,79 @@ def get_sessions():
 
 @app.route('/api/new_session', methods=['POST'])
 def new_session():
-    # Standard logic
     if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
     filename = CHAT_FILE_TEMPLATE.format(username=session['username'])
     data = safe_load_json(filename, {"sessions": []})
     new_sess = {"session_id": datetime.now().strftime("%Y%m%d%H%M%S"), "start_time": now_ts(), "title": "New Operation", "messages": []}
     data["sessions"].append(new_sess)
     safe_save_json(filename, data)
+    
+    # Notify devices to refresh list
     socketio.emit('refresh_sessions', room=session['username'])
     return jsonify(new_sess)
 
-# ... (Assume clear/rename/delete are here) ...
+@app.route('/api/rename_session', methods=['POST'])
+def rename_session():
+    if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
+    req = request.get_json()
+    sess_id = req.get('session_id')
+    new_title = req.get('title')
+    filename = CHAT_FILE_TEMPLATE.format(username=session['username'])
+    data = safe_load_json(filename, {"sessions": []})
+    for s in data["sessions"]:
+        if s["session_id"] == sess_id:
+            s["title"] = new_title
+            safe_save_json(filename, data)
+            socketio.emit('refresh_sessions', room=session['username'])
+            return jsonify({"status": "success"})
+    return jsonify({"error": "Session not found"}), 404
 
+@app.route('/api/delete_session', methods=['POST'])
+def delete_session():
+    if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
+    req = request.get_json()
+    sess_id = req.get('session_id')
+    filename = CHAT_FILE_TEMPLATE.format(username=session['username'])
+    data = safe_load_json(filename, {"sessions": []})
+    original = len(data["sessions"])
+    data["sessions"] = [s for s in data["sessions"] if s["session_id"] != sess_id]
+    if len(data["sessions"]) < original:
+        safe_save_json(filename, data)
+        socketio.emit('refresh_sessions', room=session['username'])
+        return jsonify({"status": "success"})
+    return jsonify({"error": "Session not found"}), 404
+
+@app.route('/api/clear_session', methods=['POST'])
+def clear_session():
+    if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
+    req = request.get_json()
+    sess_id = req.get('session_id')
+    filename = CHAT_FILE_TEMPLATE.format(username=session['username'])
+    data = safe_load_json(filename, {"sessions": []})
+    for s in data["sessions"]:
+        if s["session_id"] == sess_id:
+            s["messages"] = []
+            safe_save_json(filename, data)
+            socketio.emit('sync_clear', {'session_id': sess_id}, room=session['username'])
+            return jsonify({"status": "success"})
+    return jsonify({"error": "Session not found"}), 404
+
+# ========== CORE: MESSAGE PROCESSING ==========
 @app.route('/api/process_message', methods=['POST'])
 def process_message():
     if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
     
+    # 1. Gather Data
     user_msg = request.form.get('message', '')
     session_id = request.form.get('session_id')
-    use_web = request.form.get('use_web') == 'true'
+    use_web = request.form.get('use_web') == 'true' 
     uploaded_file = request.files.get('file')
-    tab_id = request.form.get('tab_id', 'unknown')
+    tab_id = request.form.get('tab_id', 'unknown') # To identify source device
     current_user = session['username']
-
-    # Log Logic (same as before)
+    
     filename = CHAT_FILE_TEMPLATE.format(username=current_user)
     data = safe_load_json(filename, {"sessions": []})
+    
     current_sess = next((s for s in data["sessions"] if s["session_id"] == session_id), None)
     if not current_sess: return jsonify({"error": "Session not found"}), 404
 
@@ -171,52 +282,114 @@ def process_message():
     if uploaded_file: display_content += f" [Attached: {uploaded_file.filename}]"
     if use_web: display_content += " [WEB SEARCH]"
     
-    # 1. Save & Sync to USER
+    # 2. Save User Message
     current_sess["messages"].append({"timestamp": now_ts(), "role": "user", "content": display_content})
     safe_save_json(filename, data)
-    
-    socketio.emit('sync_message', {
-        'session_id': session_id, 'role': 'user', 'sender': 'You',
-        'content': display_content, 'origin_tab': tab_id
-    }, room=current_user)
 
-    # 2. BROADCAST TO ADMIN
+    # 3. BROADCAST USER MESSAGE (Sync devices + Admin)
+    # To User's Room (Sync)
+    socketio.emit('sync_message', {
+        'session_id': session_id,
+        'role': 'user',
+        'sender': 'You',
+        'content': display_content,
+        'origin_tab': tab_id 
+    }, room=current_user)
+    
+    # To Admin Room (Monitor)
     socketio.emit('admin_feed_update', {
         'user': current_user,
         'role': 'user',
         'content': display_content,
         'timestamp': now_ts()
-    }, room='admin_monitor') # Send to admin room
-
-    # AI Logic
+    }, room='admin_monitor')
+    
+    msg_lower = user_msg.lower()
     response_text = ""
     action = None
-    msg_lower = user_msg.lower()
-
+    
+    # 4. System Commands
     if not uploaded_file:
         sys_resp, sys_action = execute_system_command(msg_lower)
-        if sys_resp: response_text, action = sys_resp, sys_action
+        if sys_resp:
+            response_text = sys_resp
+            action = sys_action
             
+    # 5. AI Logic
     if not response_text:
-        # ... (Ollama logic here, same as before) ...
-        response_text = "Processing..." # Placeholder if no AI
         if OLLAMA_AVAILABLE:
             try:
-                # Simple example for brevity
-                res = ollama.chat(model=OLLAMA_TEXT_MODEL, messages=[{'role':'user', 'content': user_msg}])
-                response_text = res['message']['content']
-            except: response_text = "AI Error."
+                # A. IMAGE
+                if uploaded_file and uploaded_file.mimetype.startswith('image/'):
+                    image_bytes = uploaded_file.read()
+                    res = ollama.generate(model=OLLAMA_VISION_MODEL, prompt=user_msg if user_msg else "Describe this image.", images=[image_bytes])
+                    response_text = res['response']
+                
+                # B. TEXT FILE
+                elif uploaded_file and uploaded_file.mimetype.startswith('text/'):
+                    file_content = uploaded_file.read().decode('utf-8')
+                    res = ollama.chat(model=OLLAMA_TEXT_MODEL, messages=[
+                        {"role": "system", "content": "Analyze the file provided."},
+                        {"role": "user", "content": f"File:\n{file_content}\n\nTask: {user_msg}"}
+                    ])
+                    response_text = res['message']['content']
 
-    # 3. Save AI & Sync to USER
+                # C. WEB SEARCH
+                elif use_web:
+                    search_context = perform_web_search(user_msg)
+                    current_date = get_current_date()
+                    
+                    if search_context:
+                        system_prompt = (
+                            f"You are NORA. Current Date: {current_date}.\n"
+                            "Use these REAL-TIME SEARCH RESULTS to answer:\n"
+                            f"{search_context}"
+                        )
+                    else:
+                        system_prompt = f"You are NORA. Date: {current_date}. Search failed, use internal knowledge."
+                    
+                    context_messages = [{"role": "system", "content": system_prompt}]
+                    history = current_sess["messages"][-5:] 
+                    for msg in history:
+                        clean = msg["content"].replace("[WEB SEARCH]", "").strip()
+                        context_messages.append({"role": msg["role"], "content": clean})
+                        
+                    res = ollama.chat(model=OLLAMA_TEXT_MODEL, messages=context_messages)
+                    response_text = res['message']['content']
+
+                # D. STANDARD CHAT
+                else:
+                    system_prompt = f"You are NORA, an advanced AI Assistant. Current Date: {get_current_date()}."
+                    context_messages = [{"role": "system", "content": system_prompt}]
+                    history = current_sess["messages"][-20:]
+                    for msg in history:
+                        context_messages.append({"role": msg["role"], "content": msg["content"]})
+
+                    res = ollama.chat(model=OLLAMA_TEXT_MODEL, messages=context_messages)
+                    response_text = res['message']['content']
+
+            except Exception as e:
+                print(f"AI ERROR: {e}") 
+                response_text = f"System Error: {str(e)}"
+        else:
+            response_text = "System offline. AI module not detected."
+
+    # 6. Save AI Response
     current_sess["messages"].append({"timestamp": now_ts(), "role": "assistant", "content": response_text})
     safe_save_json(filename, data)
-    
+
+    # 7. BROADCAST AI RESPONSE (Sync + Admin)
+    # To User's Room (Sync)
     socketio.emit('sync_message', {
-        'session_id': session_id, 'role': 'assistant', 'sender': 'NORA',
-        'content': response_text, 'origin_tab': 'server', 'action': action
+        'session_id': session_id,
+        'role': 'assistant',
+        'sender': 'NORA',
+        'content': response_text,
+        'origin_tab': 'server', 
+        'action': action
     }, room=current_user)
 
-    # 4. BROADCAST AI RESPONSE TO ADMIN
+    # To Admin Room (Monitor)
     socketio.emit('admin_feed_update', {
         'user': current_user,
         'role': 'assistant',
@@ -224,20 +397,25 @@ def process_message():
         'timestamp': now_ts()
     }, room='admin_monitor')
 
-    return jsonify({"response": response_text, "timestamp": now_ts(), "action": action})
+    return jsonify({
+        "response": response_text,
+        "timestamp": now_ts(),
+        "action": action
+    })
 
-# ========== SOCKETS ==========
+# ========== SOCKETIO EVENTS ==========
 @socketio.on('connect')
 def handle_connect():
     if 'username' in session:
-        # Admin joins the "God Mode" room
+        # Check if Admin
         if session['username'] == 'admin':
             join_room('admin_monitor')
-            print("!!! ADMIN CONNECTED TO MONITORING NETWORK !!!")
+            print(">>> GOD MODE ACTIVE: Admin monitoring network.")
         else:
-            # Regular users join their private room
+            # Regular User
             join_room(session['username'])
-            print(f"User {session['username']} connected.")
+            print(f">>> USER CONNECTED: {session['username']}")
 
 if __name__ == '__main__':
+    # Use socketio.run instead of app.run for WebSocket support
     socketio.run(app, debug=True, host='0.0.0.0', port=5000)
