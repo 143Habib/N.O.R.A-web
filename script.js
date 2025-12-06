@@ -13,53 +13,12 @@ socket.on('sync_message', (data) => {
     // Only update if looking at the same session
     if (data.session_id !== currentSession) return;
 
-    // Logic: 
-    // If it's a USER message AND it came from THIS tab, ignore it (we already appended it manually).
-    // If it's a USER message from another tab, show it.
-    // If it's an AI message, show it (or use type effect).
-    
-    if (data.role === 'user') {
-        if (data.origin_tab !== tabId) {
-            appendMessageHTML(data.sender, data.content, data.role);
-        }
-    } else if (data.role === 'assistant') {
-        // For AI response, usually the Sender (Device A) waits for the Fetch response to type it out.
-        // We need to prevent double typing.
-        // Strategy: The Sender (Device A) handles the specific AI typing via the fetch callback.
-        // The Receiver (Device B) handles it here.
-        if (data.origin_tab === 'server') {
-            // Check if this is a response to a request initiated by THIS tab?
-            // Actually, simply check if the last message in chat is already this content to avoid duplication,
-            // or rely on the fact that fetch handles the sender.
-            
-            // To simplify: Let's let the socket handle it for OBSERVERS, 
-            // but the Sender handles it via Fetch to ensure Action triggers work properly on the controller.
-            
-            // We can't easily know if 'fetch' is currently running for this specific message.
-            // WORKAROUND: We will assume Fetch handles the sender. 
-            // The sender needs a flag.
-        }
-    }
-});
-
-// Handling specific case: Observer needs to see AI text. 
-// Refined Logic for 'sync_message':
-socket.on('sync_message', (data) => {
-    const currentSession = document.getElementById('currentSessionId').value;
-    if (data.session_id !== currentSession) return;
-
     if (data.role === 'user' && data.origin_tab !== tabId) {
         // User message from ANOTHER device
         appendMessageHTML(data.sender, data.content, data.role);
     }
     
     if (data.role === 'assistant') {
-        // AI Message. 
-        // If I am the sender, I am currently awaiting the fetch response which does the typeEffect.
-        // So I should ignore this socket event to avoid double text.
-        // But how do I know if I am the sender of the *trigger*?
-        // We'll use a global flag 'isWaitingForResponse'.
-        
         if (!isWaitingForResponse) {
              typeEffectMessage(data.sender, data.content, data.role);
              if(data.action && data.action.type === 'open_url') window.open(data.action.url, '_blank');
@@ -166,6 +125,37 @@ async function doRegister() {
     if(data.status === 'success') { alert("SUCCESS."); window.location.href = '/login'; }
     else { document.getElementById('error').innerText = data.message; }
 }
+
+async function updateProfile() {
+    const name = document.getElementById('name').value;
+    const email = document.getElementById('email').value;
+    const phone = document.getElementById('phone').value;
+    const pass = document.getElementById('password').value;
+    
+    const payload = {
+        name: name,
+        email: email,
+        phone: phone,
+        password: pass
+    };
+    
+    const res = await fetch('/api/update_profile', {
+        method: 'POST', 
+        headers: {'Content-Type': 'application/json'}, 
+        body: JSON.stringify(payload)
+    });
+    
+    const data = await res.json();
+    
+    if(data.status === 'success') {
+        alert(data.message);
+        document.getElementById('password').value = ""; // Clear password field
+        document.getElementById('error').innerText = "";
+    } else {
+        document.getElementById('error').innerText = data.message;
+    }
+}
+
 function logout() { window.location.href = '/logout'; }
 
 // ========== CHAT ENGINE ==========
