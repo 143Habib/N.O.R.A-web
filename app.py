@@ -133,20 +133,28 @@ def login():
         users = safe_load_json(USERS_FILE, {})
         user = data.get('username')
         passwd = data.get('password')
+        hashed_pw = hash_password(passwd)
+
+        # 1. Check Admin (Priority: Check JSON first to support password change)
+        if user == "admin":
+            if "admin" in users:
+                # Admin has customized their profile
+                if users["admin"]["password"] == hashed_pw:
+                    session['username'] = "admin"
+                    session['name'] = users["admin"]["name"]
+                    return jsonify({"status": "success", "role": "admin"})
+            elif passwd == "admin123":
+                # Default hardcoded admin
+                session['username'] = "admin"
+                session['name'] = "SYSTEM OVERLORD"
+                return jsonify({"status": "success", "role": "admin"})
         
-        # 1. Check Regular Users
-        if user in users and users[user]["password"] == hash_password(passwd):
+        # 2. Check Regular Users
+        if user in users and users[user]["password"] == hashed_pw:
             session['username'] = user
             session['name'] = users[user]['name']
             return jsonify({"status": "success", "role": "user"})
             
-        # 2. Check HARDCODED ADMIN (For God Mode)
-        # In a production app, store this securely in users.json too.
-        if user == "admin" and passwd == "admin123": 
-            session['username'] = "admin"
-            session['name'] = "SYSTEM OVERLORD"
-            return jsonify({"status": "success", "role": "admin"})
-
         return jsonify({"status": "error", "message": "Invalid credentials"})
     return render_template('login.html')
 
@@ -176,6 +184,65 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
+# ========== ROUTES: PROFILE ==========
+@app.route('/profile')
+def profile():
+    if 'username' not in session: return redirect(url_for('login'))
+    
+    users = safe_load_json(USERS_FILE, {})
+    current_user = session['username']
+    
+    # Defaults if user not in DB (e.g. default admin before first save)
+    user_data = users.get(current_user, {
+        "name": session.get('name', 'Admin'),
+        "email": "",
+        "phone": ""
+    })
+    
+    return render_template('profile.html', user=current_user, data=user_data, is_admin=(current_user=='admin'))
+
+@app.route('/api/update_profile', methods=['POST'])
+def update_profile():
+    if 'username' not in session: return jsonify({"status": "error", "message": "Unauthorized"}), 401
+    
+    data = request.get_json()
+    users = safe_load_json(USERS_FILE, {})
+    current_user = session['username']
+    
+    new_password = data.get('password')
+    
+    # Handle Admin Updates
+    if current_user == 'admin':
+        # Create admin entry if it doesn't exist yet
+        if 'admin' not in users:
+            users['admin'] = {"name": "SYSTEM OVERLORD", "email": "", "phone": "", "created_at": now_ts()}
+        
+        # Admin can ONLY change password
+        if new_password:
+            users['admin']['password'] = hash_password(new_password)
+            safe_save_json(USERS_FILE, users)
+            return jsonify({"status": "success", "message": "Admin password updated."})
+        else:
+            return jsonify({"status": "error", "message": "Admin can only update password."})
+
+    # Handle Regular User Updates
+    if current_user in users:
+        # Update allowed fields
+        users[current_user]['name'] = data.get('name', users[current_user]['name'])
+        users[current_user]['email'] = data.get('email', users[current_user]['email'])
+        users[current_user]['phone'] = data.get('phone', users[current_user]['phone'])
+        
+        # Update session name to reflect change immediately
+        session['name'] = users[current_user]['name']
+
+        if new_password:
+            users[current_user]['password'] = hash_password(new_password)
+            
+        safe_save_json(USERS_FILE, users)
+        return jsonify({"status": "success", "message": "Profile updated successfully."})
+    
+    return jsonify({"status": "error", "message": "User not found."})
+
 # ========== ROUTES: VIEWS ==========
 @app.route('/chat')
 def chat():
@@ -190,7 +257,7 @@ def admin_dashboard():
     
     # Get user list for sidebar
     users_db = safe_load_json(USERS_FILE, {})
-    user_list = [{"username": u, "name": v['name']} for u, v in users_db.items()]
+    user_list = [{"username": u, "name": v['name']} for u, v in users_db.items() if u != 'admin']
     return render_template('admin.html', name=session['name'], users=user_list)
 
 # ========== ROUTES: SESSION API ==========
