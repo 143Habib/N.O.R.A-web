@@ -73,7 +73,8 @@
                 {% endfor %}
             </div>
 
-            <div style="padding: 15px; margin-top: auto;">
+            <div style="padding: 15px; margin-top: auto; display: flex; flex-direction: column; gap: 10px;">
+                <button onclick="window.location.href='/profile'" class="btn-secondary" style="width:100%"><i class="fa-solid fa-user-gear"></i> PROFILE</button>
                 <button onclick="window.location.href='/logout'" class="btn-danger" style="width:100%">
                     <i class="fa-solid fa-power-off"></i> TERMINATE
                 </button>
@@ -110,6 +111,8 @@
     <!-- ADMIN JS -->
     <script>
         const socket = io();
+
+        // Reusing the toggle function logic
         function toggleSidebar() { 
             document.getElementById('sidebar').classList.toggle('closed'); 
         }
@@ -119,7 +122,10 @@
             addLog({username: "SYSTEM"}, "admin", "Uplink established. Monitoring started.", null);
         });
 
+        // Listen for traffic
         socket.on('admin_feed_update', (data) => {
+            // Data structure: {user, role, content, timestamp}
+            // We convert 'user' string to object if needed for the addLog function
             const userObj = { username: data.user }; 
             addLog(userObj, data.role, data.content, data.timestamp);
         });
@@ -133,7 +139,7 @@
             let colorClass = role === 'user' ? 'log-user' : 'log-ai';
             let icon = role === 'user' ? '<i class="fa-solid fa-mobile-screen"></i>' : '<i class="fa-solid fa-microchip"></i>';
             let senderName = role === 'user' ? user.username.toUpperCase() : "N.O.R.A (AI)";
-            let align = role === 'user' ? 'left' : 'left'; // Keep all logs aligned left for readability
+            let align = role === 'user' ? 'left' : 'left'; 
             let bg = role === 'user' ? 'rgba(0, 243, 255, 0.05)' : 'rgba(188, 19, 254, 0.05)';
 
             // Formatting special content
