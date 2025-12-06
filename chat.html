@@ -22,7 +22,8 @@
                 <button onclick="newSession()" class="btn-secondary" style="width:100%"><i class="fa-solid fa-plus"></i> NEW OPERATION</button>
             </div>
             <div class="session-list" id="sessionList"></div>
-            <div style="padding: 15px; margin-top: auto;">
+            <div style="padding: 15px; margin-top: auto; display: flex; flex-direction: column; gap: 10px;">
+                <button onclick="window.location.href='/profile'" class="btn-secondary" style="width:100%"><i class="fa-solid fa-user-gear"></i> PROFILE</button>
                 <button onclick="logout()" class="btn-danger" style="width:100%"><i class="fa-solid fa-power-off"></i> DISCONNECT</button>
             </div>
         </aside>
