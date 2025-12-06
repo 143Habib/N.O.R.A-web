@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NORA // PROFILE</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="bg-grid"></div><div class="vignette"></div>
+    <div class="container">
+        <div style="text-align:center; margin-bottom:20px;">
+            <img src="/static/logo.png" style="width: 60px;">
+            <h1 style="font-size: 2.5rem; margin: 10px 0;">OPERATOR PROFILE</h1>
+            <small style="color:var(--neon-cyan); letter-spacing:4px;">UPDATE CREDENTIALS</small>
+        </div>
+        <div class="card">
+            
+            <label style="color:var(--text-secondary); font-size:0.8rem;">OPERATOR ID (LOCKED)</label>
+            <input type="text" id="username" value="{{ user }}" disabled style="opacity: 0.5; cursor: not-allowed;">
+            
+            {% if is_admin %}
+                <!-- Admin View: Can only see generic info, can't change it, only password -->
+                 <label style="color:var(--text-secondary); font-size:0.8rem; margin-top:10px;">DESIGNATION</label>
+                <input type="text" id="name" value="{{ data.name }}" disabled style="opacity: 0.5;">
+                
+                <input type="hidden" id="email" value="{{ data.email }}">
+                <input type="hidden" id="phone" value="{{ data.phone }}">
+            {% else %}
+                <!-- User View: Can change these -->
+                <label style="color:var(--text-secondary); font-size:0.8rem; margin-top:10px;">DESIGNATION</label>
+                <input type="text" id="name" value="{{ data.name }}" placeholder="FULL DESIGNATION">
+                
+                <label style="color:var(--text-secondary); font-size:0.8rem; margin-top:10px;">EMAIL FREQUENCY</label>
+                <input type="email" id="email" value="{{ data.email }}" placeholder="EMAIL FREQUENCY">
+                
+                <label style="color:var(--text-secondary); font-size:0.8rem; margin-top:10px;">COMMS NUMBER</label>
+                <input type="text" id="phone" value="{{ data.phone }}" placeholder="COMMS NUMBER">
+            {% endif %}
+
+            <label style="color:var(--text-secondary); font-size:0.8rem; margin-top:10px;">NEW SECURITY KEY (LEAVE BLANK TO KEEP)</label>
+            <div class="password-wrapper">
+                <input type="password" id="password" placeholder="NEW PASSWORD">
+                <button class="password-toggle-btn" onclick="togglePasswordVisibility('password', this)" type="button"><i class="fa-solid fa-eye"></i></button>
+            </div>
+
+            <div class="btn-group">
+                <button onclick="updateProfile()" class="btn-primary">SAVE CHANGES</button>
+                <button onclick="window.history.back()" class="btn-secondary">RETURN</button>
+            </div>
+            <p id="error" class="error" style="min-height: 20px; color: #ff003c; margin-top: 15px; text-align: center;"></p>
+        </div>
+    </div>
+    <script src="/static/script.js"></script>
+</body>
+</html>
